@@ -1,0 +1,436 @@
+services:
+  kafka:
+    image: apache/kafka:4.0.1
+    environment:
+      - KAFKA_ENABLE_KRAFT=yes
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_NODE_ID=1
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_LOG_DIRS=/var/lib/kafka/data
+
+      - KAFKA_LOG_RETENTION_MS=172800000      # 2 days
+      - KAFKA_LOG_RETENTION_BYTES=2147483648  # 2GB
+      - KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS=60000
+      - KAFKA_LOG_CLEANUP_POLICY=delete
+      - KAFKA_LOG_SEGMENT_BYTES=67108864
+      - KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS=12
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_OFFSETS_TOPIC_SEGMENT_BYTES=33554432
+      - KAFKA_METADATA_LOG_RETENTION_BYTES=134217728
+      - KAFKA_METADATA_LOG_MAX_RECORD_BYTES_BETWEEN_SNAPSHOTS=5242880
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-cluster.sh cluster-id --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      start_period: 20s
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  kafka-init:
+    image: apache/kafka:4.0.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+    volumes:
+      - ./scripts/create-topics.sh:/usr/local/bin/create-topics.sh:ro
+    entrypoint: ["/bin/bash","-lc","/usr/local/bin/create-topics.sh"]
+
+  mail-processor:
+    build: ./mail-processor
+    image: hire_insight_ai_assistant_mail_processor:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mail-tracker:
+        condition: service_healthy
+      postgres-mail-processor:
+        condition: service_healthy
+      mail-mapper:
+        condition: service_healthy
+    environment:
+      - PORT=8081
+      - KAFKA_SERVER=kafka:9092
+      - KAFKA_TOPIC_NEW_MAIL=new-mail
+      - KAFKA_TOPIC_INTERESTING_MAIL=interesting-mail
+      - KAFKA_CLIENT_ID=mail-processor
+      - KAFKA_CONSUMER_GROUP=mail-processor-group
+      - DATABASE_MAIL_PROCESSOR_URL=postgresql+psycopg://admin:password@postgres-mail-processor:5432/postgres
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CLASSIFY_BY_CENTROID_THRESHOLD=${CLASSIFY_BY_CENTROID_THRESHOLD}
+      - CLASSIFY_BY_CENTROID_THRESHOLDS=${CLASSIFY_BY_CENTROID_THRESHOLDS}
+      - CLASSIFY_BY_CENTROID_MARGIN=${CLASSIFY_BY_CENTROID_MARGIN}
+      - CLASSIFY_BY_CENTROID_COMMIT_BATCH_SIZE=${CLASSIFY_BY_CENTROID_COMMIT_BATCH_SIZE}
+      - CLASSIFY_BY_CENTROID_THRESHOLD_MULTIPLIER=${CLASSIFY_BY_CENTROID_THRESHOLD_MULTIPLIER}
+      - MAIL_MAPPER_URL=http://mail-mapper:8088
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8081/api/health-check --header 'x-api-version: 1' || exit 1"]
+      start_period: 15s
+      interval: 30s
+      timeout: 5s
+      retries: 9
+
+  mail-mapper:
+    build: ./mail-mapper
+    image: hire_insight_ai_assistant_mail_mapper:latest
+    depends_on:
+      postgres-mail-mapper:
+        condition: service_healthy
+    environment:
+      - PORT=8088
+      - GSA_BASE_URL=http://google-sheets-accessor:8083
+      - HUNGARIAN_MIN_MATCH_SCORE=${HUNGARIAN_MIN_MATCH_SCORE}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DATABASE_MAIL_MAPPER_URL=postgresql+psycopg://admin:password@postgres-mail-mapper:5432/postgres
+      - KAFKA_SERVER=kafka:9092
+      - KAFKA_CLIENT_ID=mail-mapper
+      - KAFKA_CONSUMER_GROUP=mail-mapper
+      - KAFKA_TOPIC_FEEDBACK=feedback
+    ports:
+      - "8088:8088"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8088/api/health-check --header 'x-api-version: 1' || exit 1"]
+      start_period: 15s
+      interval: 30s
+      timeout: 5s
+      retries: 9
+
+  postgres-mail-processor:
+    image: pgvector/pgvector:pg17
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_mail_processor_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "postgres"]
+      start_period: 5s
+      interval: 30s
+      timeout: 3s
+      retries: 9
+
+  postgres-mail-mapper:
+    image: pgvector/pgvector:pg17
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_mail_mapper_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "postgres"]
+      start_period: 5s
+      interval: 30s
+      timeout: 3s
+      retries: 9
+
+  mail-tracker:
+    build: ./mail-tracker
+    image: hire_insight_ai_assistant_mail_tracker:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis-mail-tracker:
+        condition: service_healthy
+    environment:
+      - PORT=8082
+      - KAFKA_SERVER=kafka:9092
+      - KAFKA_CLIENT_ID=mail-tracker
+      - KAFKA_TOPIC_NEW_MAIL=new-mail
+      - GMAIL_USER=${GMAIL_USER}
+      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD}
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "8082:8082"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8082/api/health-check --header 'x-api-version: 1' || exit 1"]
+      start_period: 15s
+      interval: 30s
+      timeout: 5s
+      retries: 9
+
+  redis-mail-tracker:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_mail_tracker_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      start_period: 5s
+      interval: 30s
+      timeout: 5s
+      retries: 9
+
+  google-sheets-accessor:
+    build: ./google-sheets-accessor
+    image: hire_insight_ai_assistant_google_sheets_accessor:latest
+    depends_on:
+      postgres-google-sheets-accessor:
+        condition: service_healthy
+      redis-google-sheets-accessor:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      - PORT=8083
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/gsa-credentials.json
+      - DATABASE_GOOGLE_SHEETS_ACCESSOR_URL=postgresql+psycopg://admin:password@postgres-google-sheets-accessor:5432/postgres
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - KAFKA_SERVER=kafka:9092
+      - KAFKA_CLIENT_ID=google-sheets-accessor
+      - KAFKA_CONSUMER_GROUP=google-sheets-accessor
+      - KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED=application-update-processed
+      - KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING=add-embedding-for-application
+      - KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING=save-embedding-for-application
+      - SHEET_ID=${SHEET_ID}
+    volumes:
+      - ./secrets:/secrets:ro
+    ports:
+      - "8083:8083"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8083/api/health-check --header 'x-api-version: 1' || exit 1"]
+      start_period: 15s
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  application-embedding-generator:
+    build: ./application-embedding-generator
+    image: hire_insight_ai_assistant_application_embedding_generator:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      - KAFKA_SERVER=kafka:9092
+      - KAFKA_CLIENT_ID=application-embedding-generator
+      - KAFKA_CONSUMER_GROUP=application-embedding-generator
+      - KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING=add-embedding-for-application
+      - KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING=save-embedding-for-application
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - API_VERSION=1
+      - PORT=8089
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- --header='x-api-version: 1' http://localhost:8089/api/health-check >/dev/null || exit 1"]
+      start_period: 10s
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  redis-google-sheets-accessor:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_google_sheets_accessor:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      start_period: 5s
+      interval: 30s
+      timeout: 5s
+      retries: 9
+
+  postgres-google-sheets-accessor:
+    image: pgvector/pgvector:pg17
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_google_sheets_accessor_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "postgres"]
+      start_period: 5s
+      interval: 30s
+      timeout: 3s
+      retries: 9
+
+  hire-event-processor:
+    build: ./hire-event-processor
+    image: hire_insight_ai_assistant_hire_event_processor:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mail-processor:
+        condition: service_healthy
+      google-sheets-accessor:
+        condition: service_healthy
+    environment:
+      - PORT=8085
+      - KAFKA_SERVER=kafka:9092
+      - KAFKA_TOPIC_INTERESTING_MAIL=interesting-mail
+      - KAFKA_TOPIC_HIRE_EVENT=hire-event
+      - KAFKA_TOPIC_APPLICATIONS_SYNC_UNPROCESSED=applications-sync-unprocessed
+      - KAFKA_TOPIC_APPLICATIONS_SYNC_PROCESSED=applications-sync-processed
+      - KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED=application-update-unprocessed
+      - KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED=application-update-processed
+      - KAFKA_CLIENT_ID=hire-event-processor
+      - KAFKA_CONSUMER_GROUP=hire-event-processor-group
+      - GSA_BASE_URL=http://google-sheets-accessor:8083
+      - SHEET_ID=${SHEET_ID}
+    volumes:
+      - ./secrets:/secrets:ro
+    ports:
+      - "8085:8085"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8085/api/health-check --header 'x-api-version: 1' || exit 1"]
+      start_period: 15s
+      interval: 30s
+      timeout: 3s
+      retries: 9
+
+  hire-event-notifier:
+    build: ./hire-event-notifier
+    image: hire_insight_ai_assistant_hire_event_notifier:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+      hire-event-processor:
+        condition: service_healthy
+    environment:
+      - PORT=8086
+      - KAFKA_SERVER=kafka:9092
+      - KAFKA_TOPIC_NOTIFICATION=notification
+      - KAFKA_TOPIC_NOTIFICATION_SYNC=notification-sync
+      - KAFKA_TOPIC_HIRE_EVENT=hire-event
+      - KAFKA_TOPIC_APPLICATIONS_SYNC_PROCESSED=applications-sync-processed
+      - KAFKA_CLIENT_ID=hire-event-notifier
+      - KAFKA_CONSUMER_GROUP=hire-event-notifier-group
+    ports:
+      - "8086:8086"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8086/api/health-check --header 'x-api-version: 1' || exit 1"]
+      start_period: 15s
+      interval: 30s
+      timeout: 3s
+      retries: 9
+
+  telegram-bot:
+    build: ./telegram-bot
+    image: hire_insight_ai_assistant_telegram_bot:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+      hire-event-processor:
+        condition: service_healthy
+      redis-telegram-bot:
+        condition: service_healthy
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - KAFKA_SERVER=kafka:9092
+      - KAFKA_CLIENT_ID=telegram-bot
+      - KAFKA_CONSUMER_GROUP=telegram-bot-group
+      - KAFKA_TOPIC_NOTIFICATION=notification
+      - KAFKA_TOPIC_NOTIFICATION_SYNC=notification-sync
+      - KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED=application-update-unprocessed
+      - KAFKA_TOPIC_FEEDBACK=feedback
+      - GSA_BASE_URL=http://google-sheets-accessor:8083
+      - API_VERSION=1
+      - TG_ID=${TG_ID}
+      - USER_CLIENT_URL=${USER_CLIENT_URL}
+
+  redis-telegram-bot:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_telegram_bot:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      start_period: 5s
+      interval: 30s
+      timeout: 5s
+      retries: 9
+
+  jobs-master:
+    build: ./jobs-master
+    image: hire_insight_ai_assistant_jobs_master:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mail-processor:
+        condition: service_healthy
+      google-sheets-accessor:
+        condition: service_healthy
+    environment:
+      - PORT=8084
+      - SHEET_ID=${SHEET_ID}
+      - KAFKA_SERVER=kafka:9092
+      - KAFKA_CLIENT_ID=jobs-master
+      - KAFKA_TOPIC_APPLICATIONS_SYNC=applications-sync-unprocessed
+      - GSA_BASE_URL=http://google-sheets-accessor:8083
+    ports:
+      - "8084:8084"
+    healthcheck:
+      test: ["CMD-SHELL", "python3.13 - <<'PY'\nprint('healthy')\nPY"]
+      start_period: 5s
+      interval: 15m
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    restart: unless-stopped
+    depends_on:
+      mail-mapper:
+        condition: service_healthy
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_started
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+
+volumes:
+  kafka_data:
+  redis_mail_tracker_data:
+  redis_google_sheets_accessor:
+  redis_telegram_bot:
+  postgres_mail_processor_data:
+  postgres_google_sheets_accessor_data:
+  postgres_mail_mapper_data:
+  prometheus_data:
+  grafana_data:

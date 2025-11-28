@@ -1,0 +1,13 @@
+*/vendor/
+.vscode/
+.venv/
+.env
+*/.env
+temp.json
+AGENTS_ADDITION.md
+
+**/__pycache__/
+**/secrets
+**/pyvenv.cfg
+**/.ruff_cache
+application-embedding-generator/application-embedding-generator

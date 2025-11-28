@@ -1,0 +1,34 @@
+import os
+
+
+class Config:
+    PORT = int(os.getenv("PORT", 8083))
+
+    KAFKA_SERVER = os.getenv("KAFKA_SERVER")
+    KAFKA_CLIENT_ID = os.getenv("KAFKA_CLIENT_ID")
+    KAFKA_TOPIC_INTERESTING_MAIL = os.getenv("KAFKA_TOPIC_INTERESTING_MAIL", "")
+    KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED = os.getenv(
+        "KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED",
+        "",
+    )
+    KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED = os.getenv(
+        "KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED",
+        "",
+    )
+    KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING = os.getenv(
+        "KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING",
+        "",
+    )
+    KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING = os.getenv(
+        "KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING",
+        "",
+    )
+    KAFKA_CONSUMER_GROUP = os.getenv("KAFKA_CONSUMER_GROUP") or ""
+
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+    API_VERSION = os.getenv("API_VERSION", "1")
+
+    SHEET_ID = os.getenv("SHEET_ID")
+
+    SERVICE_NAME = "gsa"

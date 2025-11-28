@@ -1,0 +1,1 @@
+"""Mail Mapper application package."""

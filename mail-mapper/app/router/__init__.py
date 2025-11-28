@@ -1,0 +1,5 @@
+"""Router package for mail-mapper service."""
+
+from .router import api_router
+
+__all__ = ["api_router"]

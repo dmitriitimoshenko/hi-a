@@ -1,5 +1,7 @@
 # hire-insight-ai-assistant
 
+A self-hosted tool for job seekers that ties together Gmail, Google Sheets, Telegram, and AI to classify hiring emails and track job application statuses automatically
+
 ### Project mission
 
 - Turn scattered hiring emails, applications sheet edits, and manual updates into a coherent online self-hosted service

@@ -27,11 +27,11 @@ This is a 80% vibe-coded project written mostly in Python. It was started as an 
 8. **Before** the HI-A is started, clean up the template Google Sheet by deleting the example rows
 9. Bring up the HI-A with the following bash command (install `python3.13` if not installed): 
     ```
-    python3.13 -m venv mail-processor/.venv
+    python3.13 -m venv mail-processor/.venv \
     make up \
     ./scripts/migrate.sh
     ```
-10. Populate `embd_cntr` table with the data from this csv file: `embd_cntr_populate.csv`
+10. Populate `embd_cntr` table with the data from this csv file: `mail-processor/embeddings/embd_cntr_populate.csv`
 
 ### Why is it safe?
 

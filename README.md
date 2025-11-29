@@ -1,39 +1,39 @@
-# hire-insight-ai-assistant
+# Hire Insight Assistant
 
-A self-hosted tool for job seekers that ties together Gmail, Google Sheets, Telegram, and AI to classify hiring emails and track job application statuses automatically
+A self-hosted assistant for job seekers that connects Gmail, Google Sheets, Telegram, and AI to classify hiring emails and keep application statuses synchronized.
 
-### Project mission
+This project is AI friendly and built primarily in Python. It started as a web infrastructure playground and has evolved into a valuable tool for everyday job search tracking.
 
-- Turn scattered hiring emails, applications sheet edits, and manual updates into a coherent online self-hosted service
-- Use contemporary AI-tools to reduce manual triage and classification for a job seeker
-- Keep a user up to date and collect user's responses and feedback through Telegram, which doesn't overload the user while everyday applications statuses tracking
+## Project mission
 
-### What is it?
+- Turn scattered hiring emails, spreadsheet edits, and manual updates into a coherent self-hosted workflow
+- Use modern AI tooling to reduce manual triage and classification for a job seeker
+- Keep the user informed through an everyday messenger while collecting feedback without adding noise
 
-This is a 80% vibe-coded project written mostly in Python. It was started as an infrastructure playground for the creator but in a while, this became a valuable tool for everyday job seeking
+## Requirements
+- Hosting mashine *(for example, EC2 or a local machine)* with Python3.13, Docker and Docker Compose installed
+- [OpenAI Platform](https://platform.openai.com/) account to enable embeddings
+- Google Account fot Gmail, Sheets and GCP usage *(recommended to create a new account)*
+- Telegram account
 
-### How to start?
+## Quick start
 
-1. Choose something to host the service (*ec2*, *local mashine* etc.)
-2. Top up the ballance at [OpenAI Platform](https://platform.openai.com/) to be able to use embeddings (1$ is way more then enough)
-3. Prepare a Google sheet using [this template](https://docs.google.com/spreadsheets/d/1BF_nt4NeeTJCH96qmHD-DeUn5E7YN3LZikL_zSP_IGk/copy) for application tracking
-    * using Google Cloud Platform, generate a `json` credentials file for access to Google Sheets (GCP -> Google Sheet API)
-4. Create a Telegram Bot (you can use [Bot Father](https://telegram.me/BotFather) for quick creation)
-5. ***optional:*** Register a new Gmail address for job seeking. This way you will
-    * save your real email address from spam and flood
-    * let classifier be more accurate
-6. Install Docker, Docker Compose, and Make on the hosting machine
-7. Populate `.env` with required secrets: `OPENAI_API_KEY`, `GMAIL_USER` (your emial address), `GMAIL_APP_PASSWORD` (you can easily take App Password in your Gmail account menu), `SHEET_ID` (you can take it from the sheet URL) and `BOT_TOKEN`; place Google credentials at `secrets/gsa-credentials.json`
-8. In the copied Google sheet: use `applications_list` page, not `example`
-9. Bring up the HI-A with the following bash command (install `python3.13` if not installed): 
+1. Prepare a Google Sheet using [this template](https://docs.google.com/spreadsheets/d/1BF_nt4NeeTJCH96qmHD-DeUn5E7YN3LZikL_zSP_IGk/copy) for application tracking.
+    * In Google Cloud Platform, generate a `json` credentials file for Google Sheets API access.
+2. Create a Telegram bot via [Bot Father](https://telegram.me/BotFather).
+3. **Optional:** register a dedicated Gmail address for job seeking to reduce spam and improve classifier accuracy.
+4. Install Python3.13, Docker and Docker Compose on the host.
+5. Populate `.env.example` with required secrets following instruction from the file.
+6. In the copied Google Sheet, use the `applications_list` page (`example` page can be removed).
+7. Bring up HI-A with:
     ```
     python3.13 -m venv mail-processor/.venv \
-    make up \
+    docker compose up -d \
     ./scripts/migrate.sh
     ```
-10. Populate `embd_cntr` table with the data from this csv file: `mail-processor/embeddings/embd_cntr_populate.csv`
+8. Populate the `embd_cntr` table with data from `mail-processor/embeddings/embd_cntr_populate.csv`.
 
-### Side topics
+## Related documents
 
 * [Security](docs/SECURITY.md)
 * [Architecture](docs/ARCH.md)

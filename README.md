@@ -24,7 +24,7 @@ This is a 80% vibe-coded project written mostly in Python. It was started as an 
     * let classifier be more accurate
 6. Install Docker, Docker Compose, and Make on the hosting machine
 7. Populate `.env` with required secrets: `OPENAI_API_KEY`, `GMAIL_USER` (your emial address), `GMAIL_APP_PASSWORD` (you can easily take App Password in your Gmail account menu), `SHEET_ID` (you can take it from the sheet URL) and `BOT_TOKEN`; place Google credentials at `secrets/gsa-credentials.json`
-8. **Before** the HI-A is started, clean up the template Google Sheet by deleting the example rows
+8. In the copied Google sheet: use `applications_list` page, not `example`
 9. Bring up the HI-A with the following bash command (install `python3.13` if not installed): 
     ```
     python3.13 -m venv mail-processor/.venv \
@@ -41,6 +41,8 @@ This is a 80% vibe-coded project written mostly in Python. It was started as an 
 
 ### Side topics
 
-* [To contributors](CONTRIBUTORS.md)
-* [Codestyle](CODESTYLE.md)
-* [Mail Mapper description](mail-mapper/README.md)
+* [To contributors](docs/CONTRIBUTORS.md)
+* [Codestyle](docs/CODESTYLE.md)
+* [Mail Mapper description](docs/MAIL_MAPPER.md)
+* [Security](docs/SECURITY.md)
+* [Architecture](docs/ARCH.md)

@@ -33,16 +33,9 @@ This is a 80% vibe-coded project written mostly in Python. It was started as an 
     ```
 10. Populate `embd_cntr` table with the data from this csv file: `mail-processor/embeddings/embd_cntr_populate.csv`
 
-### Why is it safe?
-
-- Emails are saved only locally, nothing is sent to the outside
-- Services communicate over the internal Docker network; only documented ports are exposed to the host, and Kafka/Postgres/Redis data stays within local volumes; until ports `5432`, `5433` and `5434` are closed, your data cannot be accesed from outside
-- External calls (Gmail, OpenAI, Google Sheets, Telegram) are authenticated with explicit tokens and keys so nothing leaves the environment without configured credentials
-
 ### Side topics
 
-* [To contributors](docs/CONTRIBUTORS.md)
-* [Codestyle](docs/CODESTYLE.md)
-* [Mail Mapper description](docs/MAIL_MAPPER.md)
 * [Security](docs/SECURITY.md)
 * [Architecture](docs/ARCH.md)
+* [Codestyle](docs/CODESTYLE.md)
+* [Mail Mapper description](docs/MAIL_MAPPER.md)

@@ -66,7 +66,7 @@ services:
       - KAFKA_TOPIC_INTERESTING_MAIL=interesting-mail
       - KAFKA_CLIENT_ID=mail-processor
       - KAFKA_CONSUMER_GROUP=mail-processor-group
-      - DATABASE_MAIL_PROCESSOR_URL=postgresql+psycopg://admin:password@postgres-mail-processor:5432/postgres
+      - DATABASE_MAIL_PROCESSOR_URL=${DATABASE_MAIL_PROCESSOR_URL}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - CLASSIFY_BY_CENTROID_THRESHOLD=${CLASSIFY_BY_CENTROID_THRESHOLD}
       - CLASSIFY_BY_CENTROID_THRESHOLDS=${CLASSIFY_BY_CENTROID_THRESHOLDS}
@@ -94,7 +94,7 @@ services:
       - GSA_BASE_URL=http://google-sheets-accessor:8083
       - HUNGARIAN_MIN_MATCH_SCORE=${HUNGARIAN_MIN_MATCH_SCORE}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - DATABASE_MAIL_MAPPER_URL=postgresql+psycopg://admin:password@postgres-mail-mapper:5432/postgres
+      - DATABASE_MAIL_MAPPER_URL=${DATABASE_MAIL_MAPPER_URL}
       - KAFKA_SERVER=kafka:9092
       - KAFKA_CLIENT_ID=mail-mapper
       - KAFKA_CONSUMER_GROUP=mail-mapper
@@ -194,7 +194,7 @@ services:
     environment:
       - PORT=8083
       - GOOGLE_APPLICATION_CREDENTIALS=/secrets/gsa-credentials.json
-      - DATABASE_GOOGLE_SHEETS_ACCESSOR_URL=postgresql+psycopg://admin:password@postgres-google-sheets-accessor:5432/postgres
+      - DATABASE_GOOGLE_SHEETS_ACCESSOR_URL=${DATABASE_GOOGLE_SHEETS_ACCESSOR_URL}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - KAFKA_SERVER=kafka:9092
       - KAFKA_CLIENT_ID=google-sheets-accessor

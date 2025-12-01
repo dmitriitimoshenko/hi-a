@@ -28,19 +28,8 @@ button_application_diff_handler = get_application_diff_button_handler()
 
 @router.message(CommandStart())
 async def cmd_start(message: types.Message) -> None:
-    user = message.from_user
-    tg_id_str = str(user.id) if user is not None else "unknown"
-    if user is None:
-        logger.error("Received /start without from_user, using 'unknown' tg_id")
-
     await message.answer(
-        "Привет! Я мультиюзер-бот.\n"
-        "Команды:\n"
-        "• /set <key> <value>\n"
-        "• /get <key>\n"
-        "• /me — твои данные\n\n"
-        "Из Kafka я читаю ключ=TG_ID, value=строка или JSON и шлю тебе.\n\n"
-        f"tg_id = {tg_id_str}"
+        "Hello, I'm running well!"
     )
 
 

@@ -9,9 +9,15 @@ import (
 
 	kafkaclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
 	sheetsclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/sheets"
+	"golang.org/x/sync/errgroup"
 )
 
-const maxConsumeRetries = 5
+const (
+	maxConsumeRetries = 5
+
+	KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING   = "KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING"
+	KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED = "KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED"
+)
 
 type App struct {
 	kafka  *kafkaclient.Client
@@ -28,29 +34,43 @@ func New(kafkaClient *kafkaclient.Client, sheetsClient *sheetsclient.Client) *Ap
 }
 
 func (a *App) Run(ctx context.Context) error {
-	consumeTopicsHandlers := map[string]func(ctx context.Context, message kafkaclient.Message) error{
-		os.Getenv("KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING"):   a.handleMessage,
-		os.Getenv("KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED"): a.handleMessage,
+	group, ctx := errgroup.WithContext(ctx)
+
+	group.Go(func() error {
+		if err := RunHTTPServer(ctx); err != nil {
+			return fmt.Errorf("router failed: %w", err)
+		}
+		return nil
+	})
+
+	consumeTopics := []string{
+		os.Getenv(KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING),
+		os.Getenv(KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED),
 	}
 
-	for consumeTopic, consumeHandler := range consumeTopicsHandlers {
-		go func(ctx context.Context, consumeTopic string, consumeHandler func(ctx context.Context, message kafkaclient.Message) error) {
+	for _, consumeTopic := range consumeTopics {
+		if consumeTopic == "" {
+			continue
+		}
+
+		consumeTopic := consumeTopic
+		group.Go(func() error {
 			for attempt := 1; attempt <= maxConsumeRetries; attempt++ {
-				err := a.kafka.Consume(ctx, consumeTopic, consumeHandler)
+				err := a.kafka.Consume(ctx, consumeTopic, a.handleMessage)
 				if err == nil {
-					return
+					return nil
 				}
 
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 					a.logger.Info("consumer stopped by context", slog.String("topic", consumeTopic), slog.Any("error", err))
 
-					return
+					return nil
 				}
 
 				if attempt == maxConsumeRetries {
 					a.logger.Error("consumer stopped after retries", slog.String("topic", consumeTopic), slog.Any("error", err), slog.Int("attempts", attempt))
 
-					return
+					return err
 				}
 
 				a.logger.Error(
@@ -61,10 +81,11 @@ func (a *App) Run(ctx context.Context) error {
 					slog.Int("max_attempts", maxConsumeRetries),
 				)
 			}
-		}(ctx, consumeTopic, consumeHandler)
+			return nil
+		})
 	}
 
-	return nil
+	return group.Wait()
 }
 
 func (a *App) handleMessage(ctx context.Context, message kafkaclient.Message) error {

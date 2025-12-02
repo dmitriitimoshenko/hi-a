@@ -11,6 +11,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/pgvector/pgvector-go v0.3.0
 	github.com/redis/go-redis/v9 v9.17.2
+	golang.org/x/sync v0.18.0
 	gorm.io/datatypes v1.2.7
 	gorm.io/gorm v1.30.0
 )
@@ -26,7 +27,6 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	golang.org/x/sync v0.18.0 // indirect
 	gorm.io/driver/mysql v1.5.6 // indirect
 )
 
@@ -43,6 +43,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.7 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/klauspost/compress v1.15.11 // indirect
+	github.com/magiconair/properties v1.8.10
 	github.com/pierrec/lz4/v4 v4.1.16 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect

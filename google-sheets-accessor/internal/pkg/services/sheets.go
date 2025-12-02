@@ -1,0 +1,568 @@
+package services
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+	"time"
+
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/enums"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services/dto"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/tools"
+)
+
+type SheetsService struct {
+	client sheetsClient
+}
+
+func NewSheetsService(client sheetsClient) *SheetsService {
+	return &SheetsService{
+		client: client,
+	}
+}
+
+func (s *SheetsService) GetApplication(ctx context.Context, rowID int64) (*dto.SheetApplicationDTO, error) {
+	sheetRange := "A" + strconv.FormatInt(rowID, 10) + ":P" + strconv.FormatInt(rowID, 10)
+	resp, err := s.client.Read(ctx, sheetRange)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", sheetRange, err)
+	}
+	sheetRow := resp[0]
+
+	if len(sheetRow) == 0 {
+		return nil, fmt.Errorf("no data found in Google sheet in range [%s]", sheetRange)
+	}
+	if len(sheetRow) < 10 {
+		return nil, fmt.Errorf("incomplete data in Google sheet in range [%s]", sheetRange)
+	}
+
+	appliedAt, err := time.Parse("02/01/2006", sheetRow[9])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse appliedAt value [%s] in row [%d]: %w", sheetRow[9], rowID, err)
+	}
+
+	result := &dto.SheetApplicationDTO{
+		Company:        sheetRow[0],
+		EmploymentType: enums.EmploymentType(sheetRow[1]),
+		WorkMode:       enums.WorkMode(sheetRow[2]),
+		Title:          sheetRow[3],
+		Status:         enums.ApplicationStatus(sheetRow[8]),
+		AppliedAt:      appliedAt,
+	}
+
+	if sheetRow[6] != "" && sheetRow[7] != "" {
+		if sheetRow[4] != "" {
+			result.SalaryApplied.Currency = sheetRow[6]
+			result.SalaryApplied.Period = enums.SalaryPeriod(sheetRow[7])
+			salaryAppliedAmountFrom, salaryAppliedAmountTo, ok := tools.ParseSalaryRange(sheetRow[4])
+			if !ok {
+				return nil, fmt.Errorf("failed to parse salaryApplied amount value [%s] in row [%d]", sheetRow[4], rowID)
+			}
+			result.SalaryApplied.AmountFrom = &salaryAppliedAmountFrom
+			result.SalaryApplied.AmountTo = &salaryAppliedAmountTo
+		}
+		if sheetRow[5] != "" {
+			result.SalaryProposed.Currency = sheetRow[6]
+			result.SalaryProposed.Period = enums.SalaryPeriod(sheetRow[7])
+			salaryProposedAmountFrom, salaryProposedAmountTo, ok := tools.ParseSalaryRange(sheetRow[5])
+			if !ok {
+				return nil, fmt.Errorf("failed to parse salaryProposed amount value [%s] in row [%d]", sheetRow[5], rowID)
+			}
+			result.SalaryProposed.AmountFrom = &salaryProposedAmountFrom
+			result.SalaryProposed.AmountTo = &salaryProposedAmountTo
+		}
+	}
+
+	if len(sheetRow) > 10 && sheetRow[10] != "" {
+		respondedAt, err := time.Parse("02/01/2006", sheetRow[10])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse respondedAt value [%s] in row [%d]: %w", sheetRow[10], rowID, err)
+		}
+		result.RespondedAt = &respondedAt
+	}
+
+	if len(sheetRow) > 11 && sheetRow[11] != "" {
+		nextFollowUpAt, err := time.Parse("02/01/2006 15:04:05", sheetRow[11])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse nextFollowUpAt value [%s] in row [%d]: %w", sheetRow[11], rowID, err)
+		}
+		result.NextFollowUpAt = &nextFollowUpAt
+	}
+
+	if len(sheetRow) > 12 && sheetRow[12] != "" {
+		stage, err := strconv.ParseInt(sheetRow[12], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse stage value [%s] in row [%d]: %w", sheetRow[12], rowID, err)
+		}
+		result.Stage = stage
+	}
+
+	meta := make(map[string]string)
+	if len(sheetRow) > 13 {
+		meta["contacts"] = sheetRow[13]
+	}
+	if len(sheetRow) > 14 {
+		meta["job_description"] = sheetRow[14]
+	}
+	if len(sheetRow) > 15 {
+		meta["notes"] = sheetRow[15]
+	}
+	if len(meta) > 0 {
+		result.Meta = meta
+	}
+
+	return result, nil
+
+}
+
+func (s *SheetsService) GetCompany(ctx context.Context, rowID int64) (*string, error) {
+	ceil := "A" + strconv.FormatInt(rowID, 10)
+	resp, err := s.client.Read(ctx, ceil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	company := resp[0][0]
+
+	return &company, nil
+}
+
+func (s *SheetsService) SetCompany(ctx context.Context, rowID int64, company string) error {
+	ceil := "A" + strconv.FormatInt(rowID, 10)
+	if err := s.client.Write(ctx, company, ceil); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	return nil
+}
+
+func (s *SheetsService) GetEmploymentType(ctx context.Context, rowID int64) (*enums.EmploymentType, error) {
+	ceil := "B" + strconv.FormatInt(rowID, 10)
+	resp, err := s.client.Read(ctx, ceil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	employmentType := enums.EmploymentType(resp[0][0])
+	if !employmentType.IsValid() {
+		return nil, fmt.Errorf("invalid employment type value [%s] in row [%d]", resp[0][0], rowID)
+	}
+
+	return &employmentType, nil
+}
+
+func (s *SheetsService) SetEmploymentType(ctx context.Context, rowID int64, employmentType enums.EmploymentType) error {
+	ceil := "B" + strconv.FormatInt(rowID, 10)
+	if err := s.client.Write(ctx, string(employmentType), ceil); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	return nil
+}
+
+func (s *SheetsService) GetWorkMode(ctx context.Context, rowID int64) (*enums.WorkMode, error) {
+	ceil := "C" + strconv.FormatInt(rowID, 10)
+	resp, err := s.client.Read(ctx, ceil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	workMode := enums.WorkMode(resp[0][0])
+	if !workMode.IsValid() {
+		return nil, fmt.Errorf("invalid work mode value [%s] in row [%d]", resp[0][0], rowID)
+	}
+
+	return &workMode, nil
+}
+
+func (s *SheetsService) SetWorkMode(ctx context.Context, rowID int64, workMode enums.WorkMode) error {
+	ceil := "C" + strconv.FormatInt(rowID, 10)
+	if err := s.client.Write(ctx, string(workMode), ceil); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	return nil
+}
+
+func (s *SheetsService) GetTitle(ctx context.Context, rowID int64) (*string, error) {
+	ceil := "D" + strconv.FormatInt(rowID, 10)
+	resp, err := s.client.Read(ctx, ceil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	title := resp[0][0]
+
+	return &title, nil
+}
+
+func (s *SheetsService) SetTitle(ctx context.Context, rowID int64, title string) error {
+	ceil := "D" + strconv.FormatInt(rowID, 10)
+	if err := s.client.Write(ctx, title, ceil); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	return nil
+}
+
+func (s *SheetsService) GetSalaryApplied(ctx context.Context, rowID int64) (*dto.SalaryDataDTO, error) {
+	ceilAmount := "E" + strconv.FormatInt(rowID, 10)
+	respAmount, err := s.client.Read(ctx, ceilAmount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceilAmount, err)
+	}
+
+	ceilCurrency := "G" + strconv.FormatInt(rowID, 10)
+	respCurrency, err := s.client.Read(ctx, ceilCurrency)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceilCurrency, err)
+	}
+
+	ceilPeriod := "H" + strconv.FormatInt(rowID, 10)
+	respPeriod, err := s.client.Read(ctx, ceilPeriod)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceilPeriod, err)
+	}
+
+	if len(respAmount) == 0 || len(respAmount[0]) == 0 || respAmount[0][0] == "" &&
+		len(respCurrency) == 0 || len(respCurrency[0]) == 0 || respCurrency[0][0] == "" &&
+		len(respPeriod) == 0 || len(respPeriod[0]) == 0 || respPeriod[0][0] == "" {
+		return nil, nil
+	}
+
+	if respAmount[0][0] != "" {
+		amountFrom, amountTo, ok := tools.ParseSalaryRange(respAmount[0][0])
+		if !ok {
+			return nil, fmt.Errorf("failed to parse salary amount value [%s] in row [%d]", respAmount[0][0], rowID)
+		}
+
+		return &dto.SalaryDataDTO{
+			AmountFrom: tools.ToPtr(amountFrom),
+			AmountTo:   tools.ToPtr(amountTo),
+			Currency:   respCurrency[0][0],
+			Period:     enums.SalaryPeriod(respPeriod[0][0]),
+		}, nil
+	}
+
+	return &dto.SalaryDataDTO{
+		AmountFrom: nil,
+		AmountTo:   nil,
+		Currency:   respCurrency[0][0],
+		Period:     enums.SalaryPeriod(respPeriod[0][0]),
+	}, nil
+}
+
+func (s *SheetsService) SetSalaryApplied(ctx context.Context, rowID int64, salary *dto.SalaryDataDTO) error {
+	if salary == nil {
+		salaryApplied, err := s.GetSalaryApplied(ctx, rowID)
+		if err != nil {
+			return err
+		}
+		if salaryApplied == nil {
+			sheetRange := "E" + strconv.FormatInt(rowID, 10) + ":H" + strconv.FormatInt(rowID, 10)
+			if err := s.client.Write(ctx, "", sheetRange); err != nil {
+				return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", sheetRange, err)
+			}
+			return nil
+		}
+
+		sheetRange := "E" + strconv.FormatInt(rowID, 10)
+		if err := s.client.Write(ctx, "", sheetRange); err != nil {
+			return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", sheetRange, err)
+		}
+	}
+
+	ceilAmount := "E" + strconv.FormatInt(rowID, 10)
+	if salary.AmountFrom != nil && salary.AmountTo != nil {
+		salaryAmountStr := strconv.FormatFloat(*salary.AmountFrom, 'f', -1, 64) + "-" + strconv.FormatFloat(*salary.AmountTo, 'f', -1, 64)
+		if err := s.client.Write(ctx, salaryAmountStr, ceilAmount); err != nil {
+			return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceilAmount, err)
+		}
+	}
+
+	ceilCurrency := "G" + strconv.FormatInt(rowID, 10)
+	if err := s.client.Write(ctx, salary.Currency, ceilCurrency); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceilCurrency, err)
+	}
+
+	ceilPeriod := "H" + strconv.FormatInt(rowID, 10)
+	if err := s.client.Write(ctx, string(salary.Period), ceilPeriod); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceilPeriod, err)
+	}
+
+	return nil
+}
+
+func (s *SheetsService) GetSalaryProposed(ctx context.Context, rowID int64) (*dto.SalaryDataDTO, error) {
+	ceilAmount := "F" + strconv.FormatInt(rowID, 10)
+	respAmount, err := s.client.Read(ctx, ceilAmount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceilAmount, err)
+	}
+
+	ceilCurrency := "G" + strconv.FormatInt(rowID, 10)
+	respCurrency, err := s.client.Read(ctx, ceilCurrency)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceilCurrency, err)
+	}
+
+	ceilPeriod := "H" + strconv.FormatInt(rowID, 10)
+	respPeriod, err := s.client.Read(ctx, ceilPeriod)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceilPeriod, err)
+	}
+
+	if len(respAmount) == 0 || len(respAmount[0]) == 0 || respAmount[0][0] == "" &&
+		len(respCurrency) == 0 || len(respCurrency[0]) == 0 || respCurrency[0][0] == "" &&
+		len(respPeriod) == 0 || len(respPeriod[0]) == 0 || respPeriod[0][0] == "" {
+		return nil, nil
+	}
+
+	if respAmount[0][0] != "" {
+		amountFrom, amountTo, ok := tools.ParseSalaryRange(respAmount[0][0])
+		if !ok {
+			return nil, fmt.Errorf("failed to parse salary amount value [%s] in row [%d]", respAmount[0][0], rowID)
+		}
+
+		return &dto.SalaryDataDTO{
+			AmountFrom: tools.ToPtr(amountFrom),
+			AmountTo:   tools.ToPtr(amountTo),
+			Currency:   respCurrency[0][0],
+			Period:     enums.SalaryPeriod(respPeriod[0][0]),
+		}, nil
+	}
+
+	return &dto.SalaryDataDTO{
+		AmountFrom: nil,
+		AmountTo:   nil,
+		Currency:   respCurrency[0][0],
+		Period:     enums.SalaryPeriod(respPeriod[0][0]),
+	}, nil
+}
+
+func (s *SheetsService) SetSalaryProposed(ctx context.Context, rowID int64, salary *dto.SalaryDataDTO) error {
+	if salary == nil {
+		salaryProposed, err := s.GetSalaryProposed(ctx, rowID)
+		if err != nil {
+			return err
+		}
+		if salaryProposed == nil {
+			sheetRange := "E" + strconv.FormatInt(rowID, 10) + ":H" + strconv.FormatInt(rowID, 10)
+			if err := s.client.Write(ctx, "", sheetRange); err != nil {
+				return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", sheetRange, err)
+			}
+			return nil
+		}
+
+		sheetRange := "F" + strconv.FormatInt(rowID, 10)
+		if err := s.client.Write(ctx, "", sheetRange); err != nil {
+			return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", sheetRange, err)
+		}
+	}
+
+	ceilAmount := "F" + strconv.FormatInt(rowID, 10)
+	if salary.AmountFrom != nil && salary.AmountTo != nil {
+		salaryAmountStr := strconv.FormatFloat(*salary.AmountFrom, 'f', -1, 64) + "-" + strconv.FormatFloat(*salary.AmountTo, 'f', -1, 64)
+		if err := s.client.Write(ctx, salaryAmountStr, ceilAmount); err != nil {
+			return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceilAmount, err)
+		}
+	}
+
+	ceilCurrency := "G" + strconv.FormatInt(rowID, 10)
+	if err := s.client.Write(ctx, salary.Currency, ceilCurrency); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceilCurrency, err)
+	}
+
+	ceilPeriod := "H" + strconv.FormatInt(rowID, 10)
+	if err := s.client.Write(ctx, string(salary.Period), ceilPeriod); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceilPeriod, err)
+	}
+
+	return nil
+}
+
+func (s *SheetsService) GetStatus(ctx context.Context, rowID int64) (*enums.ApplicationStatus, error) {
+	ceil := "I" + strconv.FormatInt(rowID, 10)
+	resp, err := s.client.Read(ctx, ceil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	status := enums.ApplicationStatus(resp[0][0])
+	if !status.IsValid() {
+		return nil, fmt.Errorf("invalid application status value [%s] in row [%d]", resp[0][0], rowID)
+	}
+
+	return &status, nil
+}
+
+func (s *SheetsService) SetStatus(ctx context.Context, rowID int64, status enums.ApplicationStatus) error {
+	ceil := "I" + strconv.FormatInt(rowID, 10)
+	if err := s.client.Write(ctx, string(status), ceil); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	return nil
+}
+
+func (s *SheetsService) GetAppliedAt(ctx context.Context, rowID int64) (*time.Time, error) {
+	ceil := "J" + strconv.FormatInt(rowID, 10)
+	resp, err := s.client.Read(ctx, ceil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	appliedAtStr := resp[0][0]
+	appliedAt, err := time.Parse("02/01/2006", appliedAtStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse appliedAt value [%s] in row [%d]: %w", appliedAtStr, rowID, err)
+	}
+
+	return &appliedAt, nil
+}
+
+func (s *SheetsService) SetAppliedAt(ctx context.Context, rowID int64, appliedAt time.Time) error {
+	ceil := "J" + strconv.FormatInt(rowID, 10)
+	appliedAtStr := appliedAt.Format("02/01/2006")
+	if err := s.client.Write(ctx, appliedAtStr, ceil); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	return nil
+}
+
+func (s *SheetsService) GetRespondedAt(ctx context.Context, rowID int64) (*time.Time, error) {
+	ceil := "K" + strconv.FormatInt(rowID, 10)
+	resp, err := s.client.Read(ctx, ceil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	respondedAtStr := resp[0][0]
+	respondedAt, err := time.Parse("02/01/2006", respondedAtStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse respondedAt value [%s] in row [%d]: %w", respondedAtStr, rowID, err)
+	}
+
+	return &respondedAt, nil
+}
+
+func (s *SheetsService) SetRespondedAt(ctx context.Context, rowID int64, respondedAt *time.Time) error {
+	ceil := "K" + strconv.FormatInt(rowID, 10)
+	respondedAtStr := respondedAt.Format("02/01/2006")
+	if err := s.client.Write(ctx, respondedAtStr, ceil); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	return nil
+}
+
+func (s *SheetsService) GetNextFollowUpAt(ctx context.Context, rowID int64) (*time.Time, error) {
+	ceil := "L" + strconv.FormatInt(rowID, 10)
+	resp, err := s.client.Read(ctx, ceil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	nextFollowUpAtStr := resp[0][0]
+	nextFollowUpAt, err := time.Parse("02/01/2006 15:04:05", nextFollowUpAtStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse nextFollowUpAt value [%s] in row [%d]: %w", nextFollowUpAtStr, rowID, err)
+	}
+
+	return &nextFollowUpAt, nil
+}
+
+func (s *SheetsService) SetNextFollowUpAt(ctx context.Context, rowID int64, nextFollowUpAt *time.Time) error {
+	ceil := "L" + strconv.FormatInt(rowID, 10)
+	nextFollowUpAtStr := nextFollowUpAt.Format("02/01/2006 15:04:05")
+	if err := s.client.Write(ctx, nextFollowUpAtStr, ceil); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	return nil
+}
+
+func (s *SheetsService) GetStage(ctx context.Context, rowID int64) (*string, error) {
+	ceil := "M" + strconv.FormatInt(rowID, 10)
+	resp, err := s.client.Read(ctx, ceil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	stage := resp[0][0]
+
+	return &stage, nil
+}
+
+func (s *SheetsService) SetStage(ctx context.Context, rowID int64, stage int64) error {
+	ceil := "M" + strconv.FormatInt(rowID, 10)
+	if err := s.client.Write(ctx, strconv.FormatInt(stage, 10), ceil); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	return nil
+}
+
+func (s *SheetsService) GetContacts(ctx context.Context, rowID int64) (*string, error) {
+	ceil := "N" + strconv.FormatInt(rowID, 10)
+	resp, err := s.client.Read(ctx, ceil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	contacts := resp[0][0]
+
+	return &contacts, nil
+}
+
+func (s *SheetsService) SetContacts(ctx context.Context, rowID int64, contacts string) error {
+	ceil := "N" + strconv.FormatInt(rowID, 10)
+	if err := s.client.Write(ctx, contacts, ceil); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	return nil
+}
+
+func (s *SheetsService) GetJobDescription(ctx context.Context, rowID int64) (*string, error) {
+	ceil := "O" + strconv.FormatInt(rowID, 10)
+	resp, err := s.client.Read(ctx, ceil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	jobDescription := resp[0][0]
+
+	return &jobDescription, nil
+}
+
+func (s *SheetsService) SetJobDescription(ctx context.Context, rowID int64, jobDescription string) error {
+	ceil := "O" + strconv.FormatInt(rowID, 10)
+	if err := s.client.Write(ctx, jobDescription, ceil); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	return nil
+}
+
+func (s *SheetsService) GetNotes(ctx context.Context, rowID int64) (*string, error) {
+	ceil := "P" + strconv.FormatInt(rowID, 10)
+	resp, err := s.client.Read(ctx, ceil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	notes := resp[0][0]
+
+	return &notes, nil
+}
+
+func (s *SheetsService) SetNotes(ctx context.Context, rowID int64, notes string) error {
+	ceil := "P" + strconv.FormatInt(rowID, 10)
+	if err := s.client.Write(ctx, notes, ceil); err != nil {
+		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
+	}
+
+	return nil
+}

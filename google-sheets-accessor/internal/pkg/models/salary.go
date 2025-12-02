@@ -3,7 +3,7 @@ package models
 import "time"
 
 type Salary struct {
-	ID                     int           `gorm:"primaryKey"`
+	ID                     int64         `gorm:"primaryKey"`
 	CreatedAt              time.Time     `gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt              time.Time     `gorm:"column:updated_at;autoUpdateTime"`
 	AmountFrom             *float64      `gorm:"column:amount_from;type:numeric(12,2)"`

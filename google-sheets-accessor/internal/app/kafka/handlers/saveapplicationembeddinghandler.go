@@ -8,10 +8,6 @@ import (
 	kafkaclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
 )
 
-type applicationService interface {
-	AddEmbeddingByID(ctx context.Context, id int64, embedding []float32) error
-}
-
 type EmbeddingPayload []float32
 
 type SaveApplicationEmbeddingHandler struct {

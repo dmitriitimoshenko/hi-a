@@ -8,9 +8,14 @@ import (
 	"syscall"
 
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/database"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
 	kafkaclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka/handlers"
 	sheetsclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/sheets"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/repositories"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services"
+	"golang.org/x/sync/errgroup"
 )
 
 func main() {
@@ -45,8 +50,43 @@ func run() error {
 		return err
 	}
 
-	application := app.New(kafkaClient, sheetsClient)
-	defer application.Close(ctx)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	return application.Run(ctx)
+	db, err := database.NewConnection(database.LoadConfig().ToString())
+	if err != nil {
+		return err
+	}
+
+	salaryRepository := repositories.NewSalaryRepository(db)
+	applicationRepository := repositories.NewApplicationRepository(db)
+
+	sheetsService := services.NewSheetsService(sheetsClient)
+	salaryService := services.NewSalaryService(salaryRepository)
+	applicationService := services.NewApplicationService(db, sheetsService, applicationRepository, salaryService)
+
+	saveApplicationEmbeddingHandler := handlers.NewSaveApplicationEmbeddingHandler(applicationService)
+	applicationUpdateProcessedHandler := handlers.NewApplicationUpdateProcessedHandler(applicationService)
+
+	kafkaServer := app.NewKafkaServer(
+		kafkaClient,
+		sheetsClient,
+		logger,
+		applicationUpdateProcessedHandler,
+		saveApplicationEmbeddingHandler,
+	)
+
+	httpServer := app.NewHTTPServer()
+
+	g, gctx := errgroup.WithContext(ctx)
+
+	defer kafkaServer.Close(ctx)
+	g.Go(func() error {
+		return kafkaServer.Run(gctx)
+	})
+
+	g.Go(func() error {
+		return httpServer.Run(gctx)
+	})
+
+	return g.Wait()
 }

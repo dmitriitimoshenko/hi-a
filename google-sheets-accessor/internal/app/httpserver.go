@@ -9,7 +9,13 @@ import (
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/router"
 )
 
-func RunHTTPServer(ctx context.Context) error {
+type HTTPServer struct{}
+
+func NewHTTPServer() *HTTPServer {
+	return &HTTPServer{}
+}
+
+func (s *HTTPServer) Run(ctx context.Context) error {
 	mux := http.NewServeMux()
 
 	router.SetupRoutes(mux)

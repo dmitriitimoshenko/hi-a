@@ -57,6 +57,18 @@ func (s *ApplicationService) AddEmbeddingByID(ctx context.Context, id int64, emb
 	return nil
 }
 
+func (s *ApplicationService) UpdateAndSync(ctx context.Context, application dto.UpdateApplicationDTO) error {
+	if err := s.Update(ctx, application); err != nil {
+		return fmt.Errorf("failed to Update application with DTO: \n%+v", application)
+	}
+
+	if err := s.SyncFromDB(ctx, application); err != nil {
+		return fmt.Errorf("failed to SyncFromDB application with DTO: \n%+v", application)
+	}
+
+	return nil
+}
+
 func (s *ApplicationService) Update(ctx context.Context, applicationDTO dto.UpdateApplicationDTO) error {
 	application, err := s.repository.FindByID(ctx, applicationDTO.ID)
 	if err != nil {

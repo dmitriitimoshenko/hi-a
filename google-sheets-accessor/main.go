@@ -75,7 +75,7 @@ func run() error {
 		saveApplicationEmbeddingHandler,
 	)
 
-	httpServer := app.NewHTTPServer()
+	httpServer := app.NewHTTPServer(applicationService)
 
 	g, gctx := errgroup.WithContext(ctx)
 

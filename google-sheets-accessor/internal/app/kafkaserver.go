@@ -17,14 +17,6 @@ const (
 	KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED = "KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED"
 )
 
-type applicationUpdateProcessedHandler interface {
-	Handle(ctx context.Context, message kafkaclient.Message) error
-}
-
-type saveApplicationEmbeddingHandler interface {
-	Handle(ctx context.Context, message kafkaclient.Message) error
-}
-
 type KafkaServer struct {
 	kafka                             *kafkaclient.Client
 	sheets                            *sheetsclient.Client

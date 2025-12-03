@@ -9,16 +9,23 @@ import (
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/router"
 )
 
-type HTTPServer struct{}
+type HTTPServer struct {
+	applicationService applicationService
+}
 
-func NewHTTPServer() *HTTPServer {
-	return &HTTPServer{}
+func NewHTTPServer(applicationService applicationService) *HTTPServer {
+	return &HTTPServer{
+		applicationService: applicationService,
+	}
 }
 
 func (s *HTTPServer) Run(ctx context.Context) error {
 	mux := http.NewServeMux()
 
-	router.SetupRoutes(mux)
+	router.SetupRoutes(
+		mux,
+		s.applicationService,
+	)
 
 	secureMux := apiVersionMiddleware(mux)
 

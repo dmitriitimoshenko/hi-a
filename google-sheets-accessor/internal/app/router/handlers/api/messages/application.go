@@ -1,5 +1,11 @@
 package messages
 
+import (
+	"time"
+
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/enums"
+)
+
 /// DIFF request
 
 type DiffRequest struct {
@@ -58,4 +64,58 @@ type LastProcessedRowResponse struct {
 
 type LastProcessedRowData struct {
 	LastProcessedRow int64 `json:"last_processed_row"`
+}
+
+// LIST request
+
+type ListRequest struct {
+	ApplicationStatusInclude []enums.ApplicationStatus
+	ApplicationStatusExclude []enums.ApplicationStatus
+	IsReplyEmailReceived     bool
+}
+
+type ListResponse struct {
+	Data []ListApplicationData
+}
+
+type ListApplicationData struct {
+	ID                       int64                   `json:"id"`
+	CreatedAt                time.Time               `json:"created_at"`
+	UpdatedAt                time.Time               `json:"updated_at"`
+	Company                  string                  `json:"company"`
+	Title                    string                  `json:"title"`
+	EmploymentType           enums.EmploymentType    `json:"employment_type"`
+	WorkMode                 enums.WorkMode          `json:"work_mode"`
+	Status                   enums.ApplicationStatus `json:"status"`
+	AppliedAt                time.Time               `json:"applied_at"`
+	RespondedAt              *time.Time              `json:"responded_at"`
+	NextFollowUpAt           *time.Time              `json:"next_follow_up_at"`
+	Stage                    *string                 `json:"stage"`
+	Meta                     *map[string]string      `json:"meta"`
+	Embedding                []float32               `json:"embedding"`
+	RowID                    int64                   `json:"row_id"`
+	AppliedEmailReceived     *time.Time              `json:"applied_email_received"`
+	AppliedEmailID           *int64                  `json:"applied_email_id"`
+	DeniedEmailReceived      *time.Time              `json:"denied_email_received"`
+	DeniedEmailID            *int64                  `json:"denied_email_id"`
+	MeetingInvEmailReceived  *time.Time              `json:"meeting_inv_email_received"`
+	MeetingInvEmailID        *int64                  `json:"meeting_inv_email_id"`
+	MeetingCrtEmailReceived  *time.Time              `json:"meeting_crt_email_received"`
+	MeetingCrtEmailID        *int64                  `json:"meeting_crt_email_id"`
+	MeetingUpdEmailReceived  *time.Time              `json:"meeting_upd_email_received"`
+	MeetingUpdEmailID        *int64                  `json:"meeting_upd_email_id"`
+	MeetingCnclEmailReceived *time.Time              `json:"meeting_cncl_email_received"`
+	MeetingCnclEmailID       *int64                  `json:"meeting_cncl_email_id"`
+	SalaryApplied            *ListSalaryData         `json:"salary_applied"`
+	SalaryProposed           *ListSalaryData         `json:"salary_proposed"`
+}
+
+type ListSalaryData struct {
+	ID         int64     `json:"id"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	AmountFrom *float64  `json:"amount_from"`
+	AmountTo   *float64  `json:"amount_to"`
+	Currency   string    `json:"currency"`
+	Period     string    `json:"period"`
 }

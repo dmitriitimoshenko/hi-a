@@ -3,20 +3,26 @@ package repositories
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/enums"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/models"
 	"gorm.io/gorm"
 )
 
 type ApplicationRepository struct {
-	db *gorm.DB
+	db     *gorm.DB
+	logger *slog.Logger
 }
 
 func NewApplicationRepository(
 	db *gorm.DB,
+	logger *slog.Logger,
 ) *ApplicationRepository {
 	return &ApplicationRepository{
-		db: db,
+		db:     db,
+		logger: logger,
 	}
 }
 
@@ -61,4 +67,49 @@ func (r *ApplicationRepository) GetMaxRowID(ctx context.Context) (*int64, error)
 	}
 
 	return count, nil
+}
+
+func (r *ApplicationRepository) List(
+	ctx context.Context,
+	applicationStatusInclude []enums.ApplicationStatus,
+	ApplicationStatusExclude []enums.ApplicationStatus,
+	IsReplyEmailReceived bool,
+) ([]*models.Application, error) {
+	query := r.db.WithContext(ctx).
+		Model(&models.Application{}).
+		Preload("SalaryApplied").
+		Preload("SalaryProposed")
+
+	if len(ApplicationStatusExclude) > 0 {
+		query = query.Where("status NOT IN ?", ApplicationStatusExclude)
+	} else if len(applicationStatusInclude) > 0 {
+		query = query.Where("status IN ?", applicationStatusInclude)
+
+		status := applicationStatusInclude[0]
+		switch status {
+		case enums.ApplicationStatusApplied:
+			if IsReplyEmailReceived {
+				query = query.Where("applied_email_received IS NOT NULL AND applied_email_id IS NOT NULL")
+			} else {
+				query = query.Where("NOT (applied_email_received IS NOT NULL AND applied_email_id IS NOT NULL)")
+			}
+		case enums.ApplicationStatusDenied:
+			if IsReplyEmailReceived {
+				query = query.Where("denied_email_received IS NOT NULL AND denied_email_id IS NOT NULL")
+			} else {
+				query = query.Where("NOT (denied_email_received IS NOT NULL AND denied_email_id IS NOT NULL)")
+			}
+		default:
+			r.logger.Info(
+				fmt.Sprintf("Filtering by is_reply_email_received is not supported for status: %v", applicationStatusInclude),
+			)
+		}
+	}
+
+	var applications []*models.Application
+	if err := query.Find(&applications).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch newest applications: %w", err)
+	}
+
+	return applications, nil
 }

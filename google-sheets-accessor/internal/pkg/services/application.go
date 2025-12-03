@@ -932,3 +932,22 @@ func (s *ApplicationService) mapSheetApplicationToModel(
 
 	return applicationsSavedAmount, salariesSavedAmount, nil
 }
+
+func (s *ApplicationService) List(
+	ctx context.Context,
+	applicationStatusInclude []enums.ApplicationStatus,
+	applicationStatusExclude []enums.ApplicationStatus,
+	isReplyEmailReceived bool,
+) ([]*models.Application, error) {
+	l, err := s.repository.List(
+		ctx,
+		applicationStatusInclude,
+		applicationStatusExclude,
+		isReplyEmailReceived,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return l, nil
+}

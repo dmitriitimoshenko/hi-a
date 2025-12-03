@@ -18,6 +18,12 @@ type applicationRepository interface {
 	FindByRowID(ctx context.Context, rowID int64) (*models.Application, error)
 	Save(ctx context.Context, application ...*models.Application) error
 	GetMaxRowID(ctx context.Context) (*int64, error)
+	List(
+		ctx context.Context,
+		applicationStatusInclude []enums.ApplicationStatus,
+		ApplicationStatusExclude []enums.ApplicationStatus,
+		IsReplyEmailReceived bool,
+	) ([]*models.Application, error)
 }
 
 type salaryService interface {

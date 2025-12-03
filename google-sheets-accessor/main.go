@@ -58,7 +58,7 @@ func run() error {
 	}
 
 	salaryRepository := repositories.NewSalaryRepository(db)
-	applicationRepository := repositories.NewApplicationRepository(db)
+	applicationRepository := repositories.NewApplicationRepository(db, logger)
 
 	sheetsService := services.NewSheetsService(sheetsClient)
 	salaryService := services.NewSalaryService(salaryRepository)

@@ -2,10 +2,12 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
 
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/sheets"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/enums"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/models"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services/dto"
@@ -80,6 +82,11 @@ func (s *ApplicationService) Update(ctx context.Context, applicationDTO dto.Upda
 
 	embeddingVector := pgvector.NewVector(applicationDTO.Embedding)
 
+	stageStrPtr := tools.ToPtr("")
+	if applicationDTO.Stage != nil {
+		stageStrPtr = tools.ToPtr(strconv.FormatInt(*applicationDTO.Stage, 10))
+	}
+
 	if err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		application.AppliedAt = applicationDTO.AppliedAt
 		application.Company = applicationDTO.Company
@@ -89,7 +96,7 @@ func (s *ApplicationService) Update(ctx context.Context, applicationDTO dto.Upda
 		application.NextFollowUpAt = applicationDTO.NextFollowUpAt
 		application.RespondedAt = applicationDTO.RespondedAt
 		application.RowID = applicationDTO.RowID
-		application.Stage = tools.ToPtr(strconv.FormatInt(applicationDTO.Stage, 10))
+		application.Stage = stageStrPtr
 		application.Status = applicationDTO.Status
 		application.Title = applicationDTO.Title
 		application.WorkMode = applicationDTO.WorkMode
@@ -137,7 +144,7 @@ func (s *ApplicationService) Update(ctx context.Context, applicationDTO dto.Upda
 func (s *ApplicationService) SyncFromDB(ctx context.Context, applicationDTO dto.UpdateApplicationDTO) error {
 	applicationRowID := applicationDTO.RowID
 
-	applicationFromSheetDTO, err := s.sheets.GetApplication(ctx, applicationRowID)
+	applicationFromSheetDTO, err := s.sheets.GetApplicationFromRow(ctx, applicationRowID)
 	if err != nil {
 		return fmt.Errorf("failed to get application from Google Sheets by row ID [%d]: %w", applicationRowID, err)
 	}
@@ -338,4 +345,403 @@ func (s *ApplicationService) execSyncFromDB(
 	}
 
 	return nil
+}
+
+func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow int64, endRow int64) ([]dto.ApplicationDiffEntry, *int64, error) {
+	if startRow < sheets.FirstRowIDAfterHeader || endRow < sheets.FirstRowIDAfterHeader {
+		return nil, nil, fmt.Errorf("row IDs must be greater than or equal to [%d]", sheets.FirstRowIDAfterHeader)
+	}
+
+	if endRow < startRow {
+		return nil, nil, fmt.Errorf("endRow [%d] must be greater than or equal to startRow [%d]", endRow, startRow)
+	}
+
+	sheetApplications, err := s.sheets.GetApplicationsFromRows(ctx, startRow, endRow)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get applications from Google Sheets: %w", err)
+	}
+
+	const maxWorkers = 5
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(maxWorkers)
+	applicationDiffEntriesChan := make(chan dto.ApplicationDiffEntry)
+
+	for rowID, sheetApplication := range sheetApplications {
+		g.Go(func() error {
+			application, err := s.repository.FindByRowID(gctx, rowID)
+			if err != nil {
+				return fmt.Errorf("failed to find application by rowID [%d]: %w", rowID, err)
+			}
+
+			applicationDiffs, err := s.getApplicationDiff(application, &sheetApplication)
+			if err != nil {
+				return fmt.Errorf("failed to get application diff for rowID [%d]: %w", rowID, err)
+			}
+
+			e := dto.ApplicationDiffEntry{
+				Differences: applicationDiffs,
+				RowID:       rowID,
+				Company:     &application.Company,
+				RoleTitle:   &application.Title,
+				Errors:      []string{},
+			}
+
+			applicationDiffEntriesChan <- e
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, nil, fmt.Errorf("failed to process applications for diff: %w", err)
+	}
+	close(applicationDiffEntriesChan)
+
+	applicationDiffsSet := make([]dto.ApplicationDiffEntry, 0)
+	for applicationDiffs := range applicationDiffEntriesChan {
+		applicationDiffsSet = append(applicationDiffsSet, applicationDiffs)
+	}
+
+	rowsChecked := int64(len(sheetApplications))
+
+	return applicationDiffsSet, &rowsChecked, nil
+}
+
+func (s *ApplicationService) getApplicationDiff(
+	dbApplication *models.Application,
+	sheetApplication *dto.SheetApplicationDTO,
+) ([]dto.ApplicationDiff, error) {
+	if dbApplication == nil {
+		return []dto.ApplicationDiff{{
+			Field:      "application",
+			SheetValue: sheetApplication,
+			DBValue:    nil,
+			Message:    "Application does not exist in DB",
+		}}, nil
+	}
+
+	diffs := make([]dto.ApplicationDiff, 0)
+
+	if dbApplication.Company != sheetApplication.Company {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "company",
+			SheetValue: sheetApplication.Company,
+			DBValue:    dbApplication.Company,
+			Message:    fmt.Sprintf("Row %d: Company differs (Sheet: %s, DB: %s)", dbApplication.RowID, sheetApplication.Company, dbApplication.Company),
+		})
+	}
+
+	if dbApplication.Title != sheetApplication.Title {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "title",
+			SheetValue: sheetApplication.Title,
+			DBValue:    dbApplication.Title,
+			Message:    fmt.Sprintf("Row %d: Title differs (Sheet: %s, DB: %s)", dbApplication.RowID, sheetApplication.Title, dbApplication.Title),
+		})
+	}
+
+	if dbApplication.EmploymentType != string(sheetApplication.EmploymentType) {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "employment_type",
+			SheetValue: sheetApplication.EmploymentType,
+			DBValue:    dbApplication.EmploymentType,
+			Message:    fmt.Sprintf("Row %d: EmploymentType differs (Sheet: %s, DB: %s)", dbApplication.RowID, sheetApplication.EmploymentType, dbApplication.EmploymentType),
+		})
+	}
+
+	if dbApplication.WorkMode != string(sheetApplication.WorkMode) {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "work_mode",
+			SheetValue: sheetApplication.WorkMode,
+			DBValue:    dbApplication.WorkMode,
+			Message:    fmt.Sprintf("Row %d: WorkMode differs (Sheet: %s, DB: %s)", dbApplication.RowID, sheetApplication.WorkMode, dbApplication.WorkMode),
+		})
+	}
+
+	if dbApplication.Status != string(sheetApplication.Status) {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "status",
+			SheetValue: sheetApplication.Status,
+			DBValue:    dbApplication.Status,
+			Message:    fmt.Sprintf("Row %d: Status differs (Sheet: %s, DB: %s)", dbApplication.RowID, sheetApplication.Status, dbApplication.Status),
+		})
+	}
+
+	if !tools.AreDatesEqual(dbApplication.AppliedAt, sheetApplication.AppliedAt) {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "applied_at",
+			SheetValue: sheetApplication.AppliedAt,
+			DBValue:    dbApplication.AppliedAt.Format("02/01/2006"),
+			Message: fmt.Sprintf(
+				"Row %d: AppliedAt differs (Sheet: %s, DB: %s)",
+				dbApplication.RowID,
+				sheetApplication.AppliedAt.Format("02/01/2006"),
+				dbApplication.AppliedAt.Format("02/01/2006"),
+			),
+		})
+	}
+
+	if dbApplication.RespondedAt != nil && sheetApplication.RespondedAt != nil &&
+		!tools.AreDatesEqual(*dbApplication.RespondedAt, *sheetApplication.RespondedAt) {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "responded_at",
+			SheetValue: sheetApplication.RespondedAt.Format("02/01/2006"),
+			DBValue:    dbApplication.RespondedAt.Format("02/01/2006"),
+			Message: fmt.Sprintf(
+				"Row %d: RespondedAt differs (Sheet: %s, DB: %s)",
+				dbApplication.RowID,
+				sheetApplication.RespondedAt.Format("02/01/2006"),
+				dbApplication.RespondedAt.Format("02/01/2006"),
+			),
+		})
+	} else if (dbApplication.RespondedAt == nil && sheetApplication.RespondedAt != nil) ||
+		(dbApplication.RespondedAt != nil && sheetApplication.RespondedAt == nil) {
+		var sheetValue, dbValue string
+		if sheetApplication.RespondedAt != nil {
+			sheetValue = sheetApplication.RespondedAt.Format("02/01/2006")
+		} else {
+			sheetValue = "nil"
+		}
+		if dbApplication.RespondedAt != nil {
+			dbValue = dbApplication.RespondedAt.Format("02/01/2006")
+		} else {
+			dbValue = "nil"
+		}
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "responded_at",
+			SheetValue: sheetValue,
+			DBValue:    dbValue,
+			Message: fmt.Sprintf(
+				"Row %d: RespondedAt differs (Sheet: %s, DB: %s)",
+				dbApplication.RowID,
+				sheetValue,
+				dbValue,
+			),
+		})
+	}
+
+	if dbApplication.NextFollowUpAt != nil && sheetApplication.NextFollowUpAt != nil &&
+		!dbApplication.NextFollowUpAt.Truncate(time.Second).Equal(sheetApplication.NextFollowUpAt.Truncate(time.Second)) {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "next_follow_up_at",
+			SheetValue: sheetApplication.NextFollowUpAt.Format("02/01/2006 15:04:05"),
+			DBValue:    dbApplication.NextFollowUpAt.Format("02/01/2006 15:04:05"),
+			Message: fmt.Sprintf(
+				"Row %d: NextFollowUpAt differs (Sheet: %s, DB: %s)",
+				dbApplication.RowID,
+				sheetApplication.NextFollowUpAt.Format("02/01/2006 15:04:05"),
+				dbApplication.NextFollowUpAt.Format("02/01/2006 15:04:05"),
+			),
+		})
+	} else if (dbApplication.NextFollowUpAt == nil && sheetApplication.NextFollowUpAt != nil) ||
+		(dbApplication.NextFollowUpAt != nil && sheetApplication.NextFollowUpAt == nil) {
+		var sheetValue, dbValue string
+		if sheetApplication.NextFollowUpAt != nil {
+			sheetValue = sheetApplication.NextFollowUpAt.Format("02/01/2006 15:04:05")
+		}
+		if dbApplication.NextFollowUpAt != nil {
+			dbValue = dbApplication.NextFollowUpAt.Format("02/01/2006 15:04:05")
+		}
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "next_follow_up_at",
+			SheetValue: sheetValue,
+			DBValue:    dbValue,
+			Message: fmt.Sprintf(
+				"Row %d: NextFollowUpAt differs (Sheet: %s, DB: %s)",
+				dbApplication.RowID,
+				sheetValue,
+				dbValue,
+			),
+		})
+	}
+
+	if dbApplication.Stage != nil && sheetApplication.Stage != nil {
+		dbStage, err := strconv.ParseInt(*dbApplication.Stage, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse stage value [%s] in row [%d]: %w", *dbApplication.Stage, dbApplication.RowID, err)
+		}
+		if dbStage != *sheetApplication.Stage {
+			diffs = append(diffs, dto.ApplicationDiff{
+				Field:      "stage",
+				SheetValue: *sheetApplication.Stage,
+				DBValue:    dbStage,
+				Message: fmt.Sprintf(
+					"Row %d: Stage differs (Sheet: %d, DB: %d)",
+					dbApplication.RowID,
+					*sheetApplication.Stage,
+					dbStage,
+				),
+			})
+		}
+	} else if (dbApplication.Stage == nil && sheetApplication.Stage != nil) ||
+		(dbApplication.Stage != nil && sheetApplication.Stage == nil) {
+		var sheetValue, dbValue string
+		if sheetApplication.Stage != nil {
+			sheetValue = strconv.FormatInt(*sheetApplication.Stage, 10)
+		} else {
+			sheetValue = "nil"
+		}
+		if dbApplication.Stage != nil {
+			dbValue = *dbApplication.Stage
+		} else {
+			dbValue = "nil"
+		}
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "stage",
+			SheetValue: sheetValue,
+			DBValue:    dbValue,
+			Message: fmt.Sprintf(
+				"Row %d: Stage differs (Sheet: %s, DB: %s)",
+				dbApplication.RowID,
+				sheetValue,
+				dbValue,
+			),
+		})
+	}
+
+	sheetMeta := sheetApplication.Meta
+	dbMeta := make(map[string]string)
+
+	dbMetaMarshalled, err := dbApplication.Meta.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal dbApplication.Meta for row [%d]: %w", dbApplication.RowID, err)
+	}
+	if err = json.Unmarshal(dbMetaMarshalled, &dbMeta); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal dbApplication.Meta for row [%d]: %w", dbApplication.RowID, err)
+	}
+
+	if dbMeta["contacts"] != sheetMeta["contacts"] {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "meta.contacts",
+			SheetValue: sheetMeta["contacts"],
+			DBValue:    dbMeta["contacts"],
+			Message: fmt.Sprintf(
+				"Row %d: Meta.Contacts differs (Sheet: %s, DB: %s)",
+				dbApplication.RowID,
+				sheetMeta["contacts"],
+				dbMeta["contacts"],
+			),
+		})
+	}
+
+	if dbMeta["job_description"] != sheetMeta["job_description"] {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "meta.job_description",
+			SheetValue: sheetMeta["job_description"],
+			DBValue:    dbMeta["job_description"],
+			Message: fmt.Sprintf(
+				"Row %d: Meta.JobDescription differs (Sheet: %s, DB: %s)",
+				dbApplication.RowID,
+				sheetMeta["job_description"],
+				dbMeta["job_description"],
+			),
+		})
+	}
+
+	if dbMeta["notes"] != sheetMeta["notes"] {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "meta.notes",
+			SheetValue: sheetMeta["notes"],
+			DBValue:    dbMeta["notes"],
+			Message: fmt.Sprintf(
+				"Row %d: Meta.Notes differs (Sheet: %s, DB: %s)",
+				dbApplication.RowID,
+				sheetMeta["notes"],
+				dbMeta["notes"],
+			),
+		})
+	}
+
+	var dbAppliedSalaryDTO, dbProposedSalaryDTO, sheetAppliedSalaryDTO, sheetProposedSalaryDTO *dto.SalaryDataDTO
+	if dbApplication.SalaryApplied != nil {
+		dbAppliedSalaryDTO = &dto.SalaryDataDTO{
+			AmountFrom: dbApplication.SalaryApplied.AmountFrom,
+			AmountTo:   dbApplication.SalaryApplied.AmountTo,
+			Currency:   dbApplication.SalaryApplied.Currency,
+			Period:     enums.SalaryPeriod(dbApplication.SalaryApplied.Period),
+		}
+	}
+	if dbApplication.SalaryProposed != nil {
+		dbProposedSalaryDTO = &dto.SalaryDataDTO{
+			AmountFrom: dbApplication.SalaryProposed.AmountFrom,
+			AmountTo:   dbApplication.SalaryProposed.AmountTo,
+			Currency:   dbApplication.SalaryProposed.Currency,
+			Period:     enums.SalaryPeriod(dbApplication.SalaryProposed.Period),
+		}
+	}
+	if sheetApplication.SalaryApplied != nil {
+		sheetAppliedSalaryDTO = &dto.SalaryDataDTO{
+			AmountFrom: sheetApplication.SalaryApplied.AmountFrom,
+			AmountTo:   sheetApplication.SalaryApplied.AmountTo,
+			Currency:   sheetApplication.SalaryApplied.Currency,
+			Period:     enums.SalaryPeriod(sheetApplication.SalaryApplied.Period),
+		}
+	}
+	if sheetApplication.SalaryProposed != nil {
+		sheetProposedSalaryDTO = &dto.SalaryDataDTO{
+			AmountFrom: sheetApplication.SalaryProposed.AmountFrom,
+			AmountTo:   sheetApplication.SalaryProposed.AmountTo,
+			Currency:   sheetApplication.SalaryProposed.Currency,
+			Period:     enums.SalaryPeriod(sheetApplication.SalaryProposed.Period),
+		}
+	}
+
+	if dbAppliedSalaryDTO != nil && sheetAppliedSalaryDTO != nil &&
+		*dbAppliedSalaryDTO != *sheetAppliedSalaryDTO {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "salary_applied",
+			SheetValue: sheetAppliedSalaryDTO,
+			DBValue:    dbAppliedSalaryDTO,
+			Message: fmt.Sprintf(
+				"Row %d: SalaryApplied differs (Sheet: %+v, DB: %+v)",
+				dbApplication.RowID,
+				sheetAppliedSalaryDTO,
+				dbAppliedSalaryDTO,
+			),
+		})
+	} else if (dbAppliedSalaryDTO == nil && sheetAppliedSalaryDTO != nil) ||
+		(dbAppliedSalaryDTO != nil && sheetAppliedSalaryDTO == nil) {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "salary_applied",
+			SheetValue: sheetAppliedSalaryDTO,
+			DBValue:    dbAppliedSalaryDTO,
+			Message: fmt.Sprintf(
+				"Row %d: SalaryApplied differs (Sheet: %+v, DB: %+v)",
+				dbApplication.RowID,
+				sheetAppliedSalaryDTO,
+				dbAppliedSalaryDTO,
+			),
+		})
+	}
+
+	if dbProposedSalaryDTO != nil && sheetProposedSalaryDTO != nil &&
+		*dbProposedSalaryDTO != *sheetProposedSalaryDTO {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "salary_proposed",
+			SheetValue: sheetProposedSalaryDTO,
+			DBValue:    dbProposedSalaryDTO,
+			Message: fmt.Sprintf(
+				"Row %d: SalaryProposed differs (Sheet: %+v, DB: %+v)",
+				dbApplication.RowID,
+				sheetProposedSalaryDTO,
+				dbProposedSalaryDTO,
+			),
+		})
+	} else if (dbProposedSalaryDTO == nil && sheetProposedSalaryDTO != nil) ||
+		(dbProposedSalaryDTO != nil && sheetProposedSalaryDTO == nil) {
+		diffs = append(diffs, dto.ApplicationDiff{
+			Field:      "salary_proposed",
+			SheetValue: sheetProposedSalaryDTO,
+			DBValue:    dbProposedSalaryDTO,
+			Message: fmt.Sprintf(
+				"Row %d: SalaryProposed differs (Sheet: %+v, DB: %+v)",
+				dbApplication.RowID,
+				sheetProposedSalaryDTO,
+				dbProposedSalaryDTO,
+			),
+		})
+	}
+
+	return diffs, nil
 }

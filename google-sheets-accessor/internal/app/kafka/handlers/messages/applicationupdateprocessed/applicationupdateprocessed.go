@@ -56,7 +56,7 @@ type ApplicationPayload struct {
 	AppliedAt      time.Time         `json:"applied_at,omitempty"`
 	RespondedAt    *time.Time        `json:"responded_at,omitempty"`
 	NextFollowUpAt *time.Time        `json:"next_follow_up_at,omitempty"`
-	Stage          int64             `json:"stage"`
+	Stage          *int64             `json:"stage"`
 	Meta           map[string]string `json:"meta,omitempty"`
 	Embedding      []float32         `json:"embedding,omitempty"`
 	SalaryApplied  *Salary           `json:"salary_applied,omitempty"`

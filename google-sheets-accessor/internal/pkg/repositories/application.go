@@ -31,6 +31,21 @@ func (r *ApplicationRepository) FindByID(ctx context.Context, id int64) (*models
 	return application, nil
 }
 
+func (r *ApplicationRepository) FindByRowID(ctx context.Context, rowID int64) (*models.Application, error) {
+	var application *models.Application
+	if err := r.db.WithContext(ctx).
+		Preload("SalaryApplied").
+		Preload("SalaryProposed").
+		Where("row_id = ?", rowID).
+		First(&application).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+	}
+
+	return application, nil
+}
+
 func (r *ApplicationRepository) Save(ctx context.Context, application *models.Application) error {
 	if err := r.db.WithContext(ctx).Save(application).Error; err != nil {
 		return err

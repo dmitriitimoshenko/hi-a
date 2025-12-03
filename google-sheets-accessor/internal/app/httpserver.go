@@ -38,7 +38,6 @@ func (s *HTTPServer) Run(ctx context.Context) error {
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return err
 		}
-		return nil
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -53,6 +52,8 @@ func (s *HTTPServer) Run(ctx context.Context) error {
 
 		return nil
 	}
+
+	return nil
 }
 
 func apiVersionMiddleware(next http.Handler) http.Handler {

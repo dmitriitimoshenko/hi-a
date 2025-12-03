@@ -17,7 +17,7 @@ type UpdateApplicationDTO struct {
 	AppliedAt      time.Time
 	RespondedAt    *time.Time
 	NextFollowUpAt *time.Time
-	Stage          int64
+	Stage          *int64
 	Meta           map[string]string
 	Embedding      []float32
 	SalaryApplied  *UpdateApplicationSalaryDTO
@@ -41,7 +41,7 @@ type SheetApplicationDTO struct {
 	AppliedAt      time.Time
 	RespondedAt    *time.Time
 	NextFollowUpAt *time.Time
-	Stage          int64
+	Stage          *int64
 	Meta           map[string]string
 	SalaryApplied  *SheetApplicationSalaryDTO
 	SalaryProposed *SheetApplicationSalaryDTO
@@ -52,4 +52,19 @@ type SheetApplicationSalaryDTO struct {
 	AmountTo   *float64
 	Currency   string
 	Period     enums.SalaryPeriod
+}
+
+type ApplicationDiffEntry struct {
+	RowID       int64             `json:"row_id"`
+	Company     *string           `json:"company,omitempty"`
+	RoleTitle   *string           `json:"role_title,omitempty"`
+	Differences []ApplicationDiff `json:"differences"`
+	Errors      []string          `json:"errors"`
+}
+
+type ApplicationDiff struct {
+	Field      string
+	SheetValue interface{}
+	DBValue    interface{}
+	Message    string
 }

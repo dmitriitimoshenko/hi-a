@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strconv"
 	"time"
 
@@ -21,98 +22,119 @@ func NewSheetsService(client sheetsClient) *SheetsService {
 	}
 }
 
-func (s *SheetsService) GetApplication(ctx context.Context, rowID int64) (*dto.SheetApplicationDTO, error) {
-	sheetRange := "A" + strconv.FormatInt(rowID, 10) + ":P" + strconv.FormatInt(rowID, 10)
+func (s *SheetsService) GetApplicationFromRow(ctx context.Context, rowID int64) (*dto.SheetApplicationDTO, error) {
+	applications, err := s.GetApplicationsFromRows(ctx, rowID, rowID)
+	if err != nil {
+		return nil, err
+	}
+
+	// takes last and single map element
+	var application dto.SheetApplicationDTO
+	for v := range maps.Values(applications) {
+		application = v
+	}
+
+	return &application, nil
+}
+
+func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom int64, rowTo int64) (map[int64]dto.SheetApplicationDTO, error) {
+	sheetRange := "A" + strconv.FormatInt(rowFrom, 10) + ":P" + strconv.FormatInt(rowTo, 10)
 	resp, err := s.client.Read(ctx, sheetRange)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", sheetRange, err)
 	}
-	sheetRow := resp[0]
 
-	if len(sheetRow) == 0 {
-		return nil, fmt.Errorf("no data found in Google sheet in range [%s]", sheetRange)
-	}
-	if len(sheetRow) < 10 {
-		return nil, fmt.Errorf("incomplete data in Google sheet in range [%s]", sheetRange)
-	}
+	result := make(map[int64]dto.SheetApplicationDTO, rowTo-rowFrom+1)
 
-	appliedAt, err := time.Parse("02/01/2006", sheetRow[9])
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse appliedAt value [%s] in row [%d]: %w", sheetRow[9], rowID, err)
-	}
+	rowCnt := rowFrom
+	for _, row := range resp {
+		if len(row) == 0 {
+			return nil, fmt.Errorf("no data found in Google sheet in range [%s]", sheetRange)
+		}
+		if len(row) < 10 {
+			return nil, fmt.Errorf("incomplete data in Google sheet in range [%s]", sheetRange)
+		}
 
-	result := &dto.SheetApplicationDTO{
-		Company:        sheetRow[0],
-		EmploymentType: enums.EmploymentType(sheetRow[1]),
-		WorkMode:       enums.WorkMode(sheetRow[2]),
-		Title:          sheetRow[3],
-		Status:         enums.ApplicationStatus(sheetRow[8]),
-		AppliedAt:      appliedAt,
-	}
+		appliedAt, err := time.Parse("02/01/2006", row[9])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse appliedAt value [%s] in row [%d]: %w", row[9], rowCnt, err)
+		}
 
-	if sheetRow[6] != "" && sheetRow[7] != "" {
-		if sheetRow[4] != "" {
-			result.SalaryApplied.Currency = sheetRow[6]
-			result.SalaryApplied.Period = enums.SalaryPeriod(sheetRow[7])
-			salaryAppliedAmountFrom, salaryAppliedAmountTo, ok := tools.ParseSalaryRange(sheetRow[4])
-			if !ok {
-				return nil, fmt.Errorf("failed to parse salaryApplied amount value [%s] in row [%d]", sheetRow[4], rowID)
+		subResult := dto.SheetApplicationDTO{
+			Company:        row[0],
+			EmploymentType: enums.EmploymentType(row[1]),
+			WorkMode:       enums.WorkMode(row[2]),
+			Title:          row[3],
+			Status:         enums.ApplicationStatus(row[8]),
+			AppliedAt:      appliedAt,
+		}
+
+		if row[6] != "" && row[7] != "" {
+			if row[4] != "" {
+				subResult.SalaryApplied.Currency = row[6]
+				subResult.SalaryApplied.Period = enums.SalaryPeriod(row[7])
+				salaryAppliedAmountFrom, salaryAppliedAmountTo, ok := tools.ParseSalaryRange(row[4])
+				if !ok {
+					return nil, fmt.Errorf("failed to parse salaryApplied amount value [%s] in row [%d]", row[4], rowCnt)
+				}
+				subResult.SalaryApplied.AmountFrom = &salaryAppliedAmountFrom
+				subResult.SalaryApplied.AmountTo = &salaryAppliedAmountTo
 			}
-			result.SalaryApplied.AmountFrom = &salaryAppliedAmountFrom
-			result.SalaryApplied.AmountTo = &salaryAppliedAmountTo
-		}
-		if sheetRow[5] != "" {
-			result.SalaryProposed.Currency = sheetRow[6]
-			result.SalaryProposed.Period = enums.SalaryPeriod(sheetRow[7])
-			salaryProposedAmountFrom, salaryProposedAmountTo, ok := tools.ParseSalaryRange(sheetRow[5])
-			if !ok {
-				return nil, fmt.Errorf("failed to parse salaryProposed amount value [%s] in row [%d]", sheetRow[5], rowID)
+			if row[5] != "" {
+				subResult.SalaryProposed.Currency = row[6]
+				subResult.SalaryProposed.Period = enums.SalaryPeriod(row[7])
+				salaryProposedAmountFrom, salaryProposedAmountTo, ok := tools.ParseSalaryRange(row[5])
+				if !ok {
+					return nil, fmt.Errorf("failed to parse salaryProposed amount value [%s] in row [%d]", row[5], rowCnt)
+				}
+				subResult.SalaryProposed.AmountFrom = &salaryProposedAmountFrom
+				subResult.SalaryProposed.AmountTo = &salaryProposedAmountTo
 			}
-			result.SalaryProposed.AmountFrom = &salaryProposedAmountFrom
-			result.SalaryProposed.AmountTo = &salaryProposedAmountTo
 		}
-	}
 
-	if len(sheetRow) > 10 && sheetRow[10] != "" {
-		respondedAt, err := time.Parse("02/01/2006", sheetRow[10])
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse respondedAt value [%s] in row [%d]: %w", sheetRow[10], rowID, err)
+		if len(row) > 10 && row[10] != "" {
+			respondedAt, err := time.Parse("02/01/2006", row[10])
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse respondedAt value [%s] in row [%d]: %w", row[10], rowCnt, err)
+			}
+			subResult.RespondedAt = &respondedAt
 		}
-		result.RespondedAt = &respondedAt
-	}
 
-	if len(sheetRow) > 11 && sheetRow[11] != "" {
-		nextFollowUpAt, err := time.Parse("02/01/2006 15:04:05", sheetRow[11])
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse nextFollowUpAt value [%s] in row [%d]: %w", sheetRow[11], rowID, err)
+		if len(row) > 11 && row[11] != "" {
+			nextFollowUpAt, err := time.Parse("02/01/2006 15:04:05", row[11])
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse nextFollowUpAt value [%s] in row [%d]: %w", row[11], rowCnt, err)
+			}
+			subResult.NextFollowUpAt = &nextFollowUpAt
 		}
-		result.NextFollowUpAt = &nextFollowUpAt
-	}
 
-	if len(sheetRow) > 12 && sheetRow[12] != "" {
-		stage, err := strconv.ParseInt(sheetRow[12], 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse stage value [%s] in row [%d]: %w", sheetRow[12], rowID, err)
+		if len(row) > 12 && row[12] != "" {
+			stage, err := strconv.ParseInt(row[12], 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse stage value [%s] in row [%d]: %w", row[12], rowCnt, err)
+			}
+			subResult.Stage = &stage
 		}
-		result.Stage = stage
-	}
 
-	meta := make(map[string]string)
-	if len(sheetRow) > 13 {
-		meta["contacts"] = sheetRow[13]
-	}
-	if len(sheetRow) > 14 {
-		meta["job_description"] = sheetRow[14]
-	}
-	if len(sheetRow) > 15 {
-		meta["notes"] = sheetRow[15]
-	}
-	if len(meta) > 0 {
-		result.Meta = meta
+		meta := make(map[string]string)
+		if len(row) > 13 {
+			meta["contacts"] = row[13]
+		}
+		if len(row) > 14 {
+			meta["job_description"] = row[14]
+		}
+		if len(row) > 15 {
+			meta["notes"] = row[15]
+		}
+		if len(meta) > 0 {
+			subResult.Meta = meta
+		}
+
+		result[rowCnt] = subResult
+		rowCnt++
 	}
 
 	return result, nil
-
 }
 
 func (s *SheetsService) GetCompany(ctx context.Context, rowID int64) (*string, error) {
@@ -495,9 +517,13 @@ func (s *SheetsService) GetStage(ctx context.Context, rowID int64) (*string, err
 	return &stage, nil
 }
 
-func (s *SheetsService) SetStage(ctx context.Context, rowID int64, stage int64) error {
+func (s *SheetsService) SetStage(ctx context.Context, rowID int64, stage *int64) error {
 	ceil := "M" + strconv.FormatInt(rowID, 10)
-	if err := s.client.Write(ctx, strconv.FormatInt(stage, 10), ceil); err != nil {
+	stageStr := ""
+	if stage != nil {
+		stageStr = strconv.FormatInt(*stage, 10)
+	}
+	if err := s.client.Write(ctx, stageStr, ceil); err != nil {
 		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
 	}
 

@@ -37,6 +37,8 @@ func (c *Client) Read(ctx context.Context, sheetRange string) ([][]string, error
 	requestCtx, cancel := context.WithTimeout(ctx, c.config.RequestTimeout)
 	defer cancel()
 
+	sheetRange = fmt.Sprintf("%s!%s", "applications_list", sheetRange)
+
 	response, err := c.service.Spreadsheets.Values.
 		Get(c.config.SpreadSheetID, sheetRange).
 		ValueRenderOption("UNFORMATTED_VALUE").
@@ -70,6 +72,8 @@ func (c *Client) Read(ctx context.Context, sheetRange string) ([][]string, error
 func (c *Client) Write(ctx context.Context, value string, ceil string) error {
 	requestCtx, cancel := context.WithTimeout(ctx, c.config.RequestTimeout)
 	defer cancel()
+
+	ceil = fmt.Sprintf("%s!%s", "applications_list", ceil)
 
 	valueRange := &sheetsapi.ValueRange{
 		Values: [][]any{

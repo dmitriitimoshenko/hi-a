@@ -86,21 +86,21 @@ class KafkaEventHandler:
 
         event_id = str(uuid.uuid4())
         payload = {
-            "event_id": event_id,
+            "event_id": str(uuid.uuid4()),
             "type": "application_diff",
-            "application_id": application_id,
+            # "application_id": application_id,
             "row_id": value.get("row_id"),
             "company": value.get("company"),
             "role_title": value.get("role_title"),
             "differences": value.get("differences", []),
-            "sheet_payload": value.get("sheet_payload", {}),
-            "db_snapshot": value.get("db_snapshot"),
-            "errors": value.get("errors", []),
-            "sheet_id": value.get("sheet_id"),
-            "sheet_page": value.get("sheet_page"),
-            "range": value.get("range"),
+            # "sheet_payload": value.get("sheet_payload", {}),
+            # "db_snapshot": value.get("db_snapshot"),
+            # "errors": value.get("errors", []),
+            # "sheet_id": value.get("sheet_id"),
+            # "sheet_page": value.get("sheet_page"),
+            # "range": value.get("range"),
             "detected_at": value.get("detected_at"),
-            "received_at": self._utc_now_iso(),
+            # "received_at": self._utc_now_iso(),
         }
 
         def _on_delivery(err: Exception | None, msg: Message) -> None:

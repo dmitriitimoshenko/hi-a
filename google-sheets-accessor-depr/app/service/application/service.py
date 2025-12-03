@@ -241,6 +241,23 @@ class ApplicationService:
                 application,
             )
 
+    # row_id: int
+    # company: str | None
+    # employment_type: str | None
+    # work_mode: str | None
+    # title: str | None
+    # status: str | None
+    # applied_at: datetime | None
+    # responded_at: datetime | None
+    # next_follow_up_at: datetime | None
+    # stage: str | None
+    # meta_contacts: str | None
+    # meta_job_description: str | None
+    # meta_notes: str | None
+    # salary_applied: SalarySnapshot | None
+    # salary_proposed: SalarySnapshot | None
+    # errors: list[str] = field(default_factory=list)
+
             if field_differences or errors:
                 rows_with_differences += 1
 

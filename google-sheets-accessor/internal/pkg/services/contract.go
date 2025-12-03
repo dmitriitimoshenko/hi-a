@@ -11,6 +11,7 @@ import (
 
 type applicationRepository interface {
 	FindByID(ctx context.Context, id int64) (*models.Application, error)
+	FindByRowID(ctx context.Context, rowID int64) (*models.Application, error)
 	Save(ctx context.Context, application *models.Application) error
 }
 
@@ -30,7 +31,9 @@ type sheetsClient interface {
 }
 
 type sheetsService interface {
-	GetApplication(ctx context.Context, rowID int64) (*dto.SheetApplicationDTO, error)
+	GetApplicationFromRow(ctx context.Context, rowID int64) (*dto.SheetApplicationDTO, error)
+	GetApplicationsFromRows(ctx context.Context, rowFrom int64, rowTo int64) (map[int64]dto.SheetApplicationDTO, error)
+
 	SetCompany(ctx context.Context, rowID int64, company string) error
 	SetEmploymentType(ctx context.Context, rowID int64, employmentType enums.EmploymentType) error
 	SetWorkMode(ctx context.Context, rowID int64, workMode enums.WorkMode) error
@@ -41,7 +44,7 @@ type sheetsService interface {
 	SetAppliedAt(ctx context.Context, rowID int64, appliedAt time.Time) error
 	SetRespondedAt(ctx context.Context, rowID int64, respondedAt *time.Time) error
 	SetNextFollowUpAt(ctx context.Context, rowID int64, nextFollowUpAt *time.Time) error
-	SetStage(ctx context.Context, rowID int64, stage int64) error
+	SetStage(ctx context.Context, rowID int64, stage *int64) error
 	SetContacts(ctx context.Context, rowID int64, contacts string) error
 	SetJobDescription(ctx context.Context, rowID int64, jobDescription string) error
 	SetNotes(ctx context.Context, rowID int64, notes string) error

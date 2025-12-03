@@ -10,6 +10,7 @@ import (
 
 type applicationService interface {
 	GetApplicationsDiff(ctx context.Context, startRow int64, endRow int64) ([]dto.ApplicationDiffEntry, *int64, error)
+	Fetch(ctx context.Context) (int64, int64, error)
 }
 
 func SetupRoutes(
@@ -22,7 +23,7 @@ func SetupRoutes(
 	mux.HandleFunc("GET /api/health-check", healthCheckHandler.HealthCheck)
 
 	mux.HandleFunc("POST /api/application/diff", applicationHandler.Diff)
-	// mux.HandleFunc("POST /api/application/fetch", applicationHandler.Fetch)
+	mux.HandleFunc("POST /api/application/fetch", applicationHandler.Fetch)
 	// mux.HandleFunc("POST /api/application/list", applicationHandler.List)
 	// mux.HandleFunc("POST /api/application/last-processed-row", applicationHandler.LastProcessedRow)
 	// mux.HandleFunc("POST /api/application/update-internal", applicationHandler.UpdateInternal)

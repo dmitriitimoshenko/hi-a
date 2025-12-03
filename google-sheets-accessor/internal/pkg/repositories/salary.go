@@ -29,7 +29,7 @@ func (r *SalaryRepository) FindByID(ctx context.Context, id int64) (*models.Sala
 	return salary, nil
 }
 
-func (r *SalaryRepository) Save(ctx context.Context, salary *models.Salary) error {
+func (r *SalaryRepository) Save(ctx context.Context, salary ...*models.Salary) error {
 	if err := r.db.WithContext(ctx).Save(&salary).Error; err != nil {
 		return err
 	}

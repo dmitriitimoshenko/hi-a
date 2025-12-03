@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -17,26 +18,31 @@ import (
 	"gorm.io/gorm"
 )
 
+const KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING = "KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING"
+
 type ApplicationService struct {
-	db            *gorm.DB
-	sheets        sheetsService
-	repository    applicationRepository
-	salaryService salaryService
-	safetyPerRow  map[int64]bool
+	db             *gorm.DB
+	kafkaPublisher kafkaPublisher
+	sheets         sheetsService
+	repository     applicationRepository
+	salaryService  salaryService
+	safetyPerRow   map[int64]bool
 }
 
 func NewApplicationService(
 	db *gorm.DB,
+	kafkaPublisher kafkaPublisher,
 	sheets sheetsService,
 	repository applicationRepository,
 	salaryService salaryService,
 ) *ApplicationService {
 	return &ApplicationService{
-		db:            db,
-		sheets:        sheets,
-		repository:    repository,
-		salaryService: salaryService,
-		safetyPerRow:  make(map[int64]bool),
+		db:             db,
+		kafkaPublisher: kafkaPublisher,
+		sheets:         sheets,
+		repository:     repository,
+		salaryService:  salaryService,
+		safetyPerRow:   make(map[int64]bool),
 	}
 }
 
@@ -87,19 +93,32 @@ func (s *ApplicationService) Update(ctx context.Context, applicationDTO dto.Upda
 		stageStrPtr = tools.ToPtr(strconv.FormatInt(*applicationDTO.Stage, 10))
 	}
 
+	employmentType := enums.EmploymentType(applicationDTO.EmploymentType)
+	if !employmentType.IsValid() {
+		return fmt.Errorf("invalid employmentType of value [%s]", employmentType)
+	}
+	applicationStatus := enums.ApplicationStatus(applicationDTO.Status)
+	if !applicationStatus.IsValid() {
+		return fmt.Errorf("invalid applicationStatus of value [%s]", applicationStatus)
+	}
+	workMode := enums.WorkMode(applicationDTO.WorkMode)
+	if !workMode.IsValid() {
+		return fmt.Errorf("invalid workMode of value [%s]", workMode)
+	}
+
 	if err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		application.AppliedAt = applicationDTO.AppliedAt
 		application.Company = applicationDTO.Company
 		application.Embedding = &embeddingVector
-		application.EmploymentType = applicationDTO.EmploymentType
+		application.EmploymentType = employmentType
 		application.Meta = tools.ToJSONMap(applicationDTO.Meta)
 		application.NextFollowUpAt = applicationDTO.NextFollowUpAt
 		application.RespondedAt = applicationDTO.RespondedAt
 		application.RowID = applicationDTO.RowID
 		application.Stage = stageStrPtr
-		application.Status = applicationDTO.Status
+		application.Status = applicationStatus
 		application.Title = applicationDTO.Title
-		application.WorkMode = applicationDTO.WorkMode
+		application.WorkMode = workMode
 
 		if applicationDTO.SalaryApplied != nil {
 			salaryApplied := &models.Salary{}
@@ -441,7 +460,7 @@ func (s *ApplicationService) getApplicationDiff(
 		})
 	}
 
-	if dbApplication.EmploymentType != string(sheetApplication.EmploymentType) {
+	if dbApplication.EmploymentType != sheetApplication.EmploymentType {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "employment_type",
 			SheetValue: sheetApplication.EmploymentType,
@@ -450,7 +469,7 @@ func (s *ApplicationService) getApplicationDiff(
 		})
 	}
 
-	if dbApplication.WorkMode != string(sheetApplication.WorkMode) {
+	if dbApplication.WorkMode != sheetApplication.WorkMode {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "work_mode",
 			SheetValue: sheetApplication.WorkMode,
@@ -459,7 +478,7 @@ func (s *ApplicationService) getApplicationDiff(
 		})
 	}
 
-	if dbApplication.Status != string(sheetApplication.Status) {
+	if dbApplication.Status != sheetApplication.Status {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "status",
 			SheetValue: sheetApplication.Status,
@@ -744,4 +763,172 @@ func (s *ApplicationService) getApplicationDiff(
 	}
 
 	return diffs, nil
+}
+
+func (s *ApplicationService) getMaxRowID(ctx context.Context) (*int64, error) {
+	c, err := s.repository.GetMaxRowID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
+}
+
+func (s *ApplicationService) Fetch(ctx context.Context) (int64, int64, error) {
+	maxRowID, err := s.getMaxRowID(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to getMaxRowID: %w", err)
+	}
+	*maxRowID++
+
+	sheetApplications, err := s.sheets.GetApplicationsFromRows(ctx, *maxRowID, sheets.LastRow)
+	if err != nil {
+		return 0, 0, fmt.Errorf(
+			"failed to GetApplicationsFromRows with params maxRowID=%d and LastRow=%d: %w",
+			*maxRowID,
+			sheets.LastRow,
+			err,
+		)
+	}
+	if len(sheetApplications) == 0 {
+		return 0, 0, nil
+	}
+
+	applicationsSavedAmount, salariesSavedAmount, err := s.mapSheetApplicationToModel(ctx, sheetApplications)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to mapSheetApplicationToModel: %w", err)
+	}
+
+	return applicationsSavedAmount, salariesSavedAmount, nil
+}
+
+func (s *ApplicationService) mapSheetApplicationToModel(
+	ctx context.Context,
+	sheetApplications map[int64]dto.SheetApplicationDTO,
+) (int64, int64, error) {
+	g, gctx := errgroup.WithContext(ctx)
+
+	var applicationsSavedAmount, salariesSavedAmount int64
+
+	for rowID, sheetApplication := range sheetApplications {
+		var dbApplication *models.Application
+		s.db.WithContext(ctx).Transaction(
+			func(tx *gorm.DB) error {
+				var stageStr *string
+				if sheetApplication.Stage != nil {
+					stageStr = tools.ToPtr(strconv.FormatInt(*sheetApplication.Stage, 10))
+				}
+
+				var dbSalaryApplied, dbSalaryProposed *models.Salary
+
+				var salaryAppliedAmountFrom, salaryAppliedAmountTo *float64
+				if sheetApplication.SalaryApplied != nil {
+					if sheetApplication.SalaryApplied.AmountFrom != nil {
+						salaryAppliedAmountFrom = sheetApplication.SalaryApplied.AmountFrom
+					}
+					if sheetApplication.SalaryApplied.AmountTo != nil {
+						salaryAppliedAmountTo = sheetApplication.SalaryApplied.AmountTo
+					}
+					dbSalaryApplied = &models.Salary{
+						AmountFrom: salaryAppliedAmountFrom,
+						AmountTo:   salaryAppliedAmountTo,
+						Currency:   sheetApplication.SalaryApplied.Currency,
+						Period:     string(sheetApplication.SalaryApplied.Period),
+					}
+				}
+
+				var salaryProposedAmountFrom, salaryProposedAmountTo *float64
+				if sheetApplication.SalaryProposed != nil {
+					if sheetApplication.SalaryProposed.AmountFrom != nil {
+						salaryProposedAmountFrom = sheetApplication.SalaryProposed.AmountFrom
+					}
+					if sheetApplication.SalaryProposed.AmountTo != nil {
+						salaryProposedAmountTo = sheetApplication.SalaryProposed.AmountTo
+					}
+					dbSalaryProposed = &models.Salary{
+						AmountFrom: salaryProposedAmountFrom,
+						AmountTo:   salaryProposedAmountTo,
+						Currency:   sheetApplication.SalaryProposed.Currency,
+						Period:     string(sheetApplication.SalaryProposed.Period),
+					}
+				}
+
+				var dbSalaryAppliedID, dbSalaryProposedID *int64
+				if dbSalaryApplied != nil {
+					if err := tx.WithContext(ctx).Save(dbSalaryApplied).Error; err != nil {
+						return err
+					}
+					dbSalaryAppliedID = &dbSalaryApplied.ID
+					salariesSavedAmount++
+
+				}
+				if dbSalaryProposed != nil {
+					if err := tx.WithContext(ctx).Save(dbSalaryProposed).Error; err != nil {
+						return err
+					}
+					dbSalaryProposedID = &dbSalaryProposed.ID
+					salariesSavedAmount++
+				}
+
+				dbApplication = &models.Application{
+					Company:          sheetApplication.Company,
+					Title:            sheetApplication.Title,
+					EmploymentType:   sheetApplication.EmploymentType,
+					WorkMode:         sheetApplication.WorkMode,
+					Status:           sheetApplication.Status,
+					AppliedAt:        sheetApplication.AppliedAt,
+					RespondedAt:      sheetApplication.RespondedAt,
+					NextFollowUpAt:   sheetApplication.NextFollowUpAt,
+					Stage:            stageStr,
+					Meta:             tools.ToJSONMap(sheetApplication.Meta),
+					RowID:            rowID,
+					SalaryAppliedID:  dbSalaryAppliedID,
+					SalaryProposedID: dbSalaryProposedID,
+				}
+
+				if err := tx.WithContext(ctx).Save(dbApplication).Error; err != nil {
+					return err
+				}
+				applicationsSavedAmount++
+
+				return nil
+			},
+		)
+
+		g.Go(func() error {
+			kafkaPayload := []byte(
+				fmt.Sprintf(
+					"COMPANY %s TITLE %s EMPLOYMENT TYPE %s WORK MODE %s META %s",
+					dbApplication.Company,
+					dbApplication.Title,
+					dbApplication.EmploymentType,
+					dbApplication.WorkMode,
+					dbApplication.Meta,
+				),
+			)
+
+			err := s.kafkaPublisher.Publish(
+				gctx,
+				os.Getenv(KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING),
+				[]byte(strconv.Itoa(int(dbApplication.ID))),
+				kafkaPayload,
+			)
+
+			if err != nil {
+				return fmt.Errorf(
+					"failed to publish to KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING %s: %w",
+					KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING,
+					err,
+				)
+			}
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return 0, 0, err
+	}
+
+	return applicationsSavedAmount, salariesSavedAmount, nil
 }

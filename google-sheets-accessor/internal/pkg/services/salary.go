@@ -25,8 +25,8 @@ func (s *SalaryService) FindByID(ctx context.Context, id int64) (*models.Salary,
 	return salary, nil
 }
 
-func (s *SalaryService) Save(ctx context.Context, salary *models.Salary) error {
-	if err := s.repository.Save(ctx, salary); err != nil {
+func (s *SalaryService) Save(ctx context.Context, salary ...*models.Salary) error {
+	if err := s.repository.Save(ctx, salary...); err != nil {
 		return err
 	}
 

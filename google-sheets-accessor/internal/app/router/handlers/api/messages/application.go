@@ -25,11 +25,11 @@ type DiffResponseData struct {
 }
 
 type ApplicationDiffEntry struct {
-	RowID         int64                   `json:"row_id"`
-	Company       *string                 `json:"company,omitempty"`
-	RoleTitle     *string                 `json:"role_title,omitempty"`
-	Differences   []ApplicationDiffChange `json:"differences"`
-	Errors        []string                `json:"errors"`
+	RowID       int64                   `json:"row_id"`
+	Company     *string                 `json:"company,omitempty"`
+	RoleTitle   *string                 `json:"role_title,omitempty"`
+	Differences []ApplicationDiffChange `json:"differences"`
+	Errors      []string                `json:"errors"`
 }
 
 type ApplicationDiffChange struct {
@@ -37,4 +37,15 @@ type ApplicationDiffChange struct {
 	SheetValue interface{} `json:"sheet_value"`
 	DBValue    interface{} `json:"db_value"`
 	Message    string      `json:"message"`
+}
+
+// FETCH response
+
+type FetchRequest struct {
+	Data FetchData
+}
+
+type FetchData struct {
+	ApplicationsSavedAmount int64 `json:"applications_saved_amount"`
+	SalariesSavedAmount     int64 `json:"salaries_saved_amount"`
 }

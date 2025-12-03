@@ -8,6 +8,7 @@ import (
 
 const (
 	FirstRowIDAfterHeader = 3
+	LastRow               = 10000
 	RequestTimeout        = 30 * time.Second
 )
 

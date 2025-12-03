@@ -9,19 +9,24 @@ import (
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services/dto"
 )
 
+type kafkaPublisher interface {
+	Publish(ctx context.Context, topic string, key []byte, value []byte) error
+}
+
 type applicationRepository interface {
 	FindByID(ctx context.Context, id int64) (*models.Application, error)
 	FindByRowID(ctx context.Context, rowID int64) (*models.Application, error)
-	Save(ctx context.Context, application *models.Application) error
+	Save(ctx context.Context, application ...*models.Application) error
+	GetMaxRowID(ctx context.Context) (*int64, error)
 }
 
 type salaryService interface {
-	Save(ctx context.Context, salary *models.Salary) error
+	Save(ctx context.Context, salary ...*models.Salary) error
 	FindByID(ctx context.Context, id int64) (*models.Salary, error)
 }
 
 type salaryRepository interface {
-	Save(ctx context.Context, salary *models.Salary) error
+	Save(ctx context.Context, salary ...*models.Salary) error
 	FindByID(ctx context.Context, id int64) (*models.Salary, error)
 }
 

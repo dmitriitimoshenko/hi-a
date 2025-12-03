@@ -17,6 +17,8 @@ func NewApplicationHandler(applicationService applicationService) *ApplicationHa
 }
 
 func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 
@@ -53,7 +55,6 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
@@ -85,4 +86,27 @@ func (h *ApplicationHandler) mapDiffToResponse(diffs []dto.ApplicationDiffEntry)
 	}
 
 	return responseDiff, nil
+}
+
+func (h *ApplicationHandler) Fetch(w http.ResponseWriter, r *http.Request) {
+	applicationsSavedAmount, salariesSavedAmount, err := h.applicationService.Fetch(r.Context())
+	if err != nil {
+		http.Error(w, "failed to get applications fetch", http.StatusInternalServerError)
+
+		return
+	}
+
+	resp := &messages.FetchRequest{
+		Data: messages.FetchData{
+			ApplicationsSavedAmount: applicationsSavedAmount,
+			SalariesSavedAmount:     salariesSavedAmount,
+		},
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+
+		return
+	}
 }

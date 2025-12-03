@@ -765,7 +765,7 @@ func (s *ApplicationService) getApplicationDiff(
 	return diffs, nil
 }
 
-func (s *ApplicationService) getMaxRowID(ctx context.Context) (*int64, error) {
+func (s *ApplicationService) GetMaxRowID(ctx context.Context) (*int64, error) {
 	c, err := s.repository.GetMaxRowID(ctx)
 	if err != nil {
 		return nil, err
@@ -775,7 +775,7 @@ func (s *ApplicationService) getMaxRowID(ctx context.Context) (*int64, error) {
 }
 
 func (s *ApplicationService) Fetch(ctx context.Context) (int64, int64, error) {
-	maxRowID, err := s.getMaxRowID(ctx)
+	maxRowID, err := s.GetMaxRowID(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to getMaxRowID: %w", err)
 	}

@@ -89,6 +89,8 @@ func (h *ApplicationHandler) mapDiffToResponse(diffs []dto.ApplicationDiffEntry)
 }
 
 func (h *ApplicationHandler) Fetch(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	applicationsSavedAmount, salariesSavedAmount, err := h.applicationService.Fetch(r.Context())
 	if err != nil {
 		http.Error(w, "failed to get applications fetch", http.StatusInternalServerError)
@@ -100,6 +102,35 @@ func (h *ApplicationHandler) Fetch(w http.ResponseWriter, r *http.Request) {
 		Data: messages.FetchData{
 			ApplicationsSavedAmount: applicationsSavedAmount,
 			SalariesSavedAmount:     salariesSavedAmount,
+		},
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+
+		return
+	}
+}
+
+func (h *ApplicationHandler) LastProcessedRow(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	maxRowID, err := h.applicationService.GetMaxRowID(r.Context())
+	if err != nil {
+		http.Error(w, "failed to get Last Processed Row", http.StatusInternalServerError)
+
+		return
+	}
+	if maxRowID == nil {
+		http.Error(w, "failed to get Last Processed Row, it seem to be undefined", http.StatusInternalServerError)
+
+		return
+	}
+
+	resp := &messages.LastProcessedRowResponse{
+		Data: messages.LastProcessedRowData{
+			LastProcessedRow: *maxRowID,
 		},
 	}
 

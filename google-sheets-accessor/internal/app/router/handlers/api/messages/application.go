@@ -49,3 +49,13 @@ type FetchData struct {
 	ApplicationsSavedAmount int64 `json:"applications_saved_amount"`
 	SalariesSavedAmount     int64 `json:"salaries_saved_amount"`
 }
+
+// LPR response
+
+type LastProcessedRowResponse struct {
+	Data LastProcessedRowData
+}
+
+type LastProcessedRowData struct {
+	LastProcessedRow int64 `json:"last_processed_row"`
+}

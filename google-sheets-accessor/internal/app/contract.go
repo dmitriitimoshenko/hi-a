@@ -10,6 +10,7 @@ import (
 type applicationService interface {
 	GetApplicationsDiff(ctx context.Context, startRow int64, endRow int64) ([]dto.ApplicationDiffEntry, *int64, error)
 	Fetch(ctx context.Context) (int64, int64, error)
+	GetMaxRowID(ctx context.Context) (*int64, error)
 }
 
 type applicationUpdateProcessedHandler interface {

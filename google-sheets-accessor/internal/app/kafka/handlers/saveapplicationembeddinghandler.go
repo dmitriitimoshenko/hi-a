@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"log/slog"
+	"strconv"
 
 	kafkaclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
 )
@@ -32,19 +32,13 @@ func (h *SaveApplicationEmbeddingHandler) Handle(ctx context.Context, message ka
 		return err
 	}
 
-	h.logger.Info(
-		"kafka key on SaveApplicationEmbeddingHandler will be parsed",
-		slog.String("messageKey", string(message.Key)),
-	)
+	mk := string(message.Key)
+	applicationID, err := strconv.Atoi(mk)
+	if err != nil {
+		return err
+	}
 
-	mk := binary.BigEndian.Uint64(message.Key)
-	applicationID := int64(mk)
-	h.logger.Info(
-		"kafka key on SaveApplicationEmbeddingHandler will was parsed",
-		slog.Int64("applicationID", applicationID),
-	)
-
-	if err := h.applicationService.AddEmbeddingByID(ctx, applicationID, embedding); err != nil {
+	if err := h.applicationService.AddEmbeddingByID(ctx, int64(applicationID), embedding); err != nil {
 		return err
 	}
 

@@ -61,7 +61,7 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 	rowCnt := rowFrom
 	for _, row := range resp {
 		if len(row) == 0 {
-			return nil, fmt.Errorf("no data found in Google sheet in range [%s]", sheetRange)
+			continue
 		}
 		if len(row) < 10 {
 			return nil, fmt.Errorf("incomplete data in Google sheet in range [%s]", sheetRange)

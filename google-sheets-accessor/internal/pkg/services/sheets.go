@@ -120,11 +120,11 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 		}
 
 		if len(row) > 11 && row[11] != "" {
-			nextFollowUpAt, err := time.Parse("02/01/2006 15:04:05", row[11])
+			nextFollowUpAt, err := tools.ParseSheetDateGivenInDaysSince(row[11], "02/01/2006 15:04:05")
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse nextFollowUpAt value [%s] in row [%d]: %w", row[11], rowCnt, err)
+				return nil, fmt.Errorf("failed to parse nextFollowUpAt value [%s] in row [%d] with content [%v]: %w", row[11], rowCnt, row, err)
 			}
-			subResult.NextFollowUpAt = &nextFollowUpAt
+			subResult.NextFollowUpAt = nextFollowUpAt
 		}
 
 		if len(row) > 12 && row[12] != "" {

@@ -9,7 +9,7 @@ import (
 const day = 24 * time.Hour
 
 func ParseSheetDateGivenInDaysSince(value, layout string) (*time.Time, error) {
-	days, err := strconv.Atoi(value)
+	days, err := strconv.ParseFloat(value, 64)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse sheet date value [%s]: %w", value, err)
 	}

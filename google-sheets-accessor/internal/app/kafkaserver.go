@@ -52,6 +52,12 @@ func (s *KafkaServer) Run(ctx context.Context) error {
 			for attempt := 1; attempt <= maxConsumeRetries; attempt++ {
 				err := s.kafka.Consume(ctx, consumeTopic, consumeHandler)
 				if err == nil {
+					s.logger.Info(
+						"consumer started",
+						slog.String("topic", consumeTopic),
+						slog.Int("attempt", attempt),
+						slog.Int("max_attempts", maxConsumeRetries),
+					)
 					return
 				}
 

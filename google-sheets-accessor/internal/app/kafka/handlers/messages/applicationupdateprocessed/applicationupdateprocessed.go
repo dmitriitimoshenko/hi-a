@@ -1,6 +1,7 @@
 package applicationupdateprocessed
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/enums"
@@ -17,23 +18,23 @@ type ApplicationUpdatePayload struct {
 }
 
 type EmailPayload struct {
-	ID              int64             `json:"id"`
-	CreatedAt       time.Time         `json:"created_at,omitempty"`
-	UpdatedAt       time.Time         `json:"updated_at,omitempty"`
-	InboxEmailID    *int64            `json:"inbox_email_id,omitempty"`
-	Label           string            `json:"label"`
-	Subject         string            `json:"subject"`
-	Body            string            `json:"body"`
-	Content         string            `json:"content"`
-	SenderEmail     string            `json:"sender_email"`
-	SenderName      string            `json:"sender_name"`
-	RecipientName   string            `json:"recipient_name,omitempty"`
-	RecipientEmail  string            `json:"recipient_email,omitempty"`
-	ContentType     string            `json:"content_type,omitempty"`
-	Meta            map[string]string `json:"meta,omitempty"`
-	UsedForLearning string            `json:"used_for_learning,omitempty"`
-	ShouldBeSent    bool              `json:"should_be_sent_to_heh"`
-	IcsFiles        []IcsFileData     `json:"ics_file_data_list,omitempty"`
+	ID              int64           `json:"id"`
+	CreatedAt       time.Time       `json:"created_at,omitempty"`
+	UpdatedAt       time.Time       `json:"updated_at,omitempty"`
+	InboxEmailID    *int64          `json:"inbox_email_id,omitempty"`
+	Label           string          `json:"label"`
+	Subject         string          `json:"subject"`
+	Body            string          `json:"body"`
+	Content         string          `json:"content"`
+	SenderEmail     string          `json:"sender_email"`
+	SenderName      string          `json:"sender_name"`
+	RecipientName   string          `json:"recipient_name,omitempty"`
+	RecipientEmail  string          `json:"recipient_email,omitempty"`
+	ContentType     string          `json:"content_type,omitempty"`
+	Meta            json.RawMessage `json:"meta,omitempty"`
+	UsedForLearning string          `json:"used_for_learning,omitempty"`
+	ShouldBeSent    bool            `json:"should_be_sent_to_heh"`
+	IcsFiles        []IcsFileData   `json:"ics_file_data_list,omitempty"`
 }
 
 type IcsFileData struct {

@@ -275,9 +275,6 @@ def _publish_differences(
             continue
 
         payload = _build_kafka_payload(
-            config,
-            start_row,
-            end_row,
             entry,
         )
 
@@ -320,29 +317,17 @@ def _publish_differences(
 
 
 def _build_kafka_payload(
-    config: ApplicationDiffJobConfig,
-    start_row: int,
-    end_row: int,
     entry: dict,
 ) -> dict:
     detected_at = _utc_now_iso()
 
     payload = {
-        "sheet_id": config.sheet_id,
-        "sheet_page": config.sheet_page,
-        "range": {
-            "start_row": start_row,
-            "end_row": end_row,
-        },
-        "application_id": entry.get("application_id"),
         "row_id": entry.get("row_id"),
         "company": entry.get("company"),
         "role_title": entry.get("role_title"),
         "differences": entry.get("differences", []),
-        "sheet_payload": entry.get("sheet_payload", {}),
-        "db_snapshot": entry.get("db_snapshot"),
-        "errors": entry.get("errors", []),
         "detected_at": detected_at,
+        "errors": entry.get("errors", []),
     }
 
     return payload

@@ -63,6 +63,8 @@ class KafkaNotificationHandler:
 
             return
 
+        # logic below possible can be removed
+
         email = value.get("email") or {}
         mapped_application = value.get("mapped_application") or {}
 
@@ -163,7 +165,7 @@ class KafkaNotificationHandler:
         company = escape(payload.get("company") or "Unknown company")
         role = escape(payload.get("role_title") or "Unknown role")
         differences = payload.get("differences") or []
-        errors = payload.get("errors") or []
+        # errors = payload.get("errors") or []
         detected_at = payload.get("detected_at")
 
         diff_lines = self._format_diff_lines(differences)
@@ -176,13 +178,13 @@ class KafkaNotificationHandler:
             "\n".join(diff_lines),
         ]
 
-        if errors:
-            error_lines = "\n".join(
-                f"• {escape(str(error))}"
-                for error in errors
-            )
-            text_parts.append("\n<b>Additional notes</b>:")
-            text_parts.append(error_lines)
+        # if errors:
+        #     error_lines = "\n".join(
+        #         f"• {escape(str(error))}"
+        #         for error in errors
+        #     )
+        #     text_parts.append("\n<b>Additional notes</b>:")
+        #     text_parts.append(error_lines)
 
         if detected_at:
             text_parts.append(

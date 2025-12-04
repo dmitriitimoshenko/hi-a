@@ -1,15 +1,19 @@
-FROM python:3.13-slim
+FROM golang:1.25 AS builder
 
-RUN apt-get update
-RUN apt-get install -y curl
+WORKDIR /src
 
-WORKDIR /app
-ADD ./requirements.txt /app/requirements.txt
-RUN pip install -r requirements.txt
-RUN pip install pylint
+COPY go.mod go.sum ./
+RUN go mod download
 
-COPY . /app
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/gsa ./main.go
 
-EXPOSE $PORT
+FROM alpine:3.20
 
-CMD ["gunicorn", "-c", "gunicorn.conf.py", "app.server:app"]
+RUN adduser -D appuser
+
+COPY --from=builder /bin/gsa /usr/local/bin/gsa
+
+USER appuser
+
+ENTRYPOINT ["/usr/local/bin/gsa"]

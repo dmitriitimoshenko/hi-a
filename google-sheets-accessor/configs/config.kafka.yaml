@@ -1,0 +1,15 @@
+serviceName: google-sheets-accessor
+kafka:
+  brokers:
+    - localhost:9092
+  groupID: google-sheets-accessor
+  consumeTopic: inbound.events
+  publishTopic: outbound.events
+  clientID: google-sheets-accessor
+  dialTimeout: 10s
+  commitInterval: 2s
+googleSheets:
+  spreadsheetID: your-spreadsheet-id
+  credentialsPath: ./secrets/gsa-credentials.json
+  requestTimeout: 15s
+  range: Sheet1!A1

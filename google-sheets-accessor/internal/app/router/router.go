@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/router/handlers/api"
@@ -36,9 +37,10 @@ func SetupRoutes(
 	mux *http.ServeMux,
 	applicationService applicationService,
 	sheetsService sheetsService,
+	logger *slog.Logger,
 ) {
 	healthCheckHandler := api.NewHealthCheckHandler()
-	applicationHandler := api.NewApplicationHandler(applicationService)
+	applicationHandler := api.NewApplicationHandler(logger, applicationService)
 	sheetsHandler := api.NewSheetsHandler(sheetsService)
 
 	mux.HandleFunc("GET /api/health-check", healthCheckHandler.HealthCheck)

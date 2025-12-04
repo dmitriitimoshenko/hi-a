@@ -35,6 +35,7 @@ func (s *HTTPServer) Run(ctx context.Context) error {
 		mux,
 		s.applicationService,
 		s.sheetsService,
+		s.logger,
 	)
 
 	secureMux := s.apiVersionMiddleware(mux)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	kafkaclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
 	aup "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka/handlers/messages/applicationupdateprocessed"
@@ -13,11 +14,16 @@ import (
 )
 
 type ApplicationUpdateProcessedHandler struct {
+	logger             *slog.Logger
 	applicationService applicationService
 }
 
-func NewApplicationUpdateProcessedHandler(applicationService applicationService) *ApplicationUpdateProcessedHandler {
+func NewApplicationUpdateProcessedHandler(
+	logger *slog.Logger,
+	applicationService applicationService,
+) *ApplicationUpdateProcessedHandler {
 	return &ApplicationUpdateProcessedHandler{
+		logger:             logger,
 		applicationService: applicationService,
 	}
 }
@@ -43,6 +49,10 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 		return fmt.Errorf("failed to ByteToMapStringString: %w", err)
 	}
 
+	h.logger.Info(
+		"ByteToFloat32Slice is going to convert...",
+		slog.Any("b", mappedApplication.Embedding),
+	)
 	embedding, err := tools.ByteToFloat32Slice(mappedApplication.Embedding)
 	if err != nil {
 		return fmt.Errorf("failed to ByteToFloat32Slice: %w", err)

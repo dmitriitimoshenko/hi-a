@@ -12,17 +12,17 @@ import (
 type EmbeddingPayload []float32
 
 type SaveApplicationEmbeddingHandler struct {
-	applicationService applicationService
 	logger             *slog.Logger
+	applicationService applicationService
 }
 
 func NewSaveApplicationEmbeddingHandler(
-	applicationService applicationService,
 	logger *slog.Logger,
+	applicationService applicationService,
 ) *SaveApplicationEmbeddingHandler {
 	return &SaveApplicationEmbeddingHandler{
-		applicationService: applicationService,
 		logger:             logger,
+		applicationService: applicationService,
 	}
 }
 

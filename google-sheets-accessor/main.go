@@ -66,8 +66,8 @@ func run() error {
 	salaryService := services.NewSalaryService(salaryRepository)
 	applicationService := services.NewApplicationService(db, kafkaClient, sheetsService, applicationRepository, salaryService)
 
-	saveApplicationEmbeddingHandler := handlers.NewSaveApplicationEmbeddingHandler(applicationService, logger)
-	applicationUpdateProcessedHandler := handlers.NewApplicationUpdateProcessedHandler(applicationService)
+	saveApplicationEmbeddingHandler := handlers.NewSaveApplicationEmbeddingHandler(logger, applicationService)
+	applicationUpdateProcessedHandler := handlers.NewApplicationUpdateProcessedHandler(logger, applicationService)
 
 	kafkaServer := app.NewKafkaServer(
 		kafkaClient,

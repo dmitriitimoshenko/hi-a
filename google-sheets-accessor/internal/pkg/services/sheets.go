@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"strconv"
@@ -66,9 +67,12 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 			return nil, fmt.Errorf("incomplete data in Google sheet in range [%s]", sheetRange)
 		}
 
-		appliedAt, err := time.Parse("02/01/2006", row[9])
+		appliedAt, err := tools.ParseSheetDateGivenInDaysSince(row[9], "02/01/2006")
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse appliedAt value [%s] in row [%d] with content [%v]: %w", row[9], rowCnt, row, err)
+		}
+		if appliedAt == nil {
+			return nil, errors.New("appliedAt is nil")
 		}
 
 		subResult := dto.SheetApplicationDTO{
@@ -77,7 +81,7 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 			WorkMode:       enums.WorkMode(row[2]),
 			Title:          row[3],
 			Status:         enums.ApplicationStatus(row[8]),
-			AppliedAt:      appliedAt,
+			AppliedAt:      *appliedAt,
 		}
 
 		if row[6] != "" && row[7] != "" {
@@ -104,11 +108,11 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 		}
 
 		if len(row) > 10 && row[10] != "" {
-			respondedAt, err := time.Parse("02/01/2006", row[10])
+			respondedAt, err := tools.ParseSheetDateGivenInDaysSince(row[10], "02/01/2006")
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse respondedAt value [%s] in row [%d]: %w", row[10], rowCnt, err)
+				return nil, fmt.Errorf("failed to parse respondedAt value [%s] in row [%d] with content [%v]: %w", row[10], rowCnt, row, err)
 			}
-			subResult.RespondedAt = &respondedAt
+			subResult.RespondedAt = respondedAt
 		}
 
 		if len(row) > 11 && row[11] != "" {

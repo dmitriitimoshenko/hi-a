@@ -185,7 +185,7 @@ func (h *ApplicationHandler) List(w http.ResponseWriter, r *http.Request) {
 	var diffRequest messages.ListRequest
 	if err := decoder.Decode(&diffRequest); err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on List: %w", err).Error(),
+			fmt.Errorf("failure on List on decoding req body: %w", err).Error(),
 		)
 		http.Error(w, "invalid request payload", http.StatusBadRequest)
 
@@ -200,7 +200,7 @@ func (h *ApplicationHandler) List(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on List: %w", err).Error(),
+			fmt.Errorf("failure on List on List method: %w", err).Error(),
 		)
 		http.Error(w, "failed to list applications", http.StatusInternalServerError)
 
@@ -217,7 +217,7 @@ func (h *ApplicationHandler) List(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on List: %w", err).Error(),
+			fmt.Errorf("failure on List endoding response: %w", err).Error(),
 		)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 

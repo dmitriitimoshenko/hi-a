@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/router/handlers/api/messages"
@@ -15,11 +16,18 @@ import (
 const cleanUpMeetingsBatchSize = 50
 
 type ApplicationHandler struct {
+	logger             *slog.Logger
 	applicationService applicationService
 }
 
-func NewApplicationHandler(applicationService applicationService) *ApplicationHandler {
-	return &ApplicationHandler{applicationService: applicationService}
+func NewApplicationHandler(
+	logger *slog.Logger,
+	applicationService applicationService,
+) *ApplicationHandler {
+	return &ApplicationHandler{
+		logger:             logger,
+		applicationService: applicationService,
+	}
 }
 
 func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
@@ -28,6 +36,9 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 
 	var diffRequest messages.DiffRequest
 	if err := decoder.Decode(&diffRequest); err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on Diff: %w", err).Error(),
+		)
 		http.Error(w, "invalid request payload", http.StatusBadRequest)
 
 		return
@@ -39,6 +50,9 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 		diffRequest.SheetRange.EndRow,
 	)
 	if err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on Diff: %w", err).Error(),
+		)
 		http.Error(w, "failed to get applications diff", http.StatusInternalServerError)
 
 		return
@@ -46,6 +60,9 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 
 	mappedDiff, err := h.mapDiffToResponse(diffs)
 	if err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on Diff: %w", err).Error(),
+		)
 		http.Error(w, "failed to map diff to response", http.StatusInternalServerError)
 
 		return
@@ -62,6 +79,9 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on Diff: %w", err).Error(),
+		)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 
 		return
@@ -96,6 +116,9 @@ func (h *ApplicationHandler) mapDiffToResponse(diffs []dto.ApplicationDiffEntry)
 func (h *ApplicationHandler) Fetch(w http.ResponseWriter, r *http.Request) {
 	applicationsSavedAmount, salariesSavedAmount, err := h.applicationService.Fetch(r.Context())
 	if err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on Fetch: %w", err).Error(),
+		)
 		http.Error(w, "failed to get applications fetch", http.StatusInternalServerError)
 
 		return
@@ -111,6 +134,9 @@ func (h *ApplicationHandler) Fetch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on Fetch: %w", err).Error(),
+		)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 
 		return
@@ -120,11 +146,15 @@ func (h *ApplicationHandler) Fetch(w http.ResponseWriter, r *http.Request) {
 func (h *ApplicationHandler) LastProcessedRow(w http.ResponseWriter, r *http.Request) {
 	maxRowID, err := h.applicationService.GetMaxRowID(r.Context())
 	if err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on Fetch: %w", err).Error(),
+		)
 		http.Error(w, "failed to get Last Processed Row", http.StatusInternalServerError)
 
 		return
 	}
 	if maxRowID == nil {
+		h.logger.Error("failed to get Last Processed Row, it seem to be undefined")
 		http.Error(w, "failed to get Last Processed Row, it seem to be undefined", http.StatusInternalServerError)
 
 		return
@@ -139,6 +169,9 @@ func (h *ApplicationHandler) LastProcessedRow(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on Fetch: %w", err).Error(),
+		)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 
 		return
@@ -151,6 +184,9 @@ func (h *ApplicationHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	var diffRequest messages.ListRequest
 	if err := decoder.Decode(&diffRequest); err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on List: %w", err).Error(),
+		)
 		http.Error(w, "invalid request payload", http.StatusBadRequest)
 
 		return
@@ -163,6 +199,9 @@ func (h *ApplicationHandler) List(w http.ResponseWriter, r *http.Request) {
 		diffRequest.IsReplyEmailReceived,
 	)
 	if err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on List: %w", err).Error(),
+		)
 		http.Error(w, "failed to list applications", http.StatusInternalServerError)
 
 		return
@@ -177,6 +216,9 @@ func (h *ApplicationHandler) List(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on List: %w", err).Error(),
+		)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 
 		return
@@ -253,6 +295,9 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	var diffRequest messages.DiffUpdateRequest
 	if err := decoder.Decode(&diffRequest); err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on Update: %w", err).Error(),
+		)
 		http.Error(w, "invalid request payload", http.StatusBadRequest)
 
 		return
@@ -263,17 +308,26 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	switch diffRequest.UpdateDirection {
 	case enums.DiffUpdateDirectionExternal:
 		if err := h.applicationService.SyncFromDB(ctx, diffRequest.ApplicationID); err != nil {
+			h.logger.Error(
+				fmt.Errorf("failure on Update: %w", err).Error(),
+			)
 			http.Error(w, "failed to sync from db", http.StatusInternalServerError)
 
 			return
 		}
 	case enums.DiffUpdateDirectionInternal:
 		if err := h.applicationService.SyncFromSheet(ctx, diffRequest.ApplicationRowID); err != nil {
+			h.logger.Error(
+				fmt.Errorf("failure on Update: %w", err).Error(),
+			)
 			http.Error(w, "failed to sync from db", http.StatusInternalServerError)
 
 			return
 		}
 	default:
+		h.logger.Error(
+			fmt.Sprintf("failed to parse update direction: diffRequest.UpdateDirection (valid: %v)", diffRequest.UpdateDirection.IsValid()),
+		)
 		http.Error(
 			w,
 			fmt.Sprintf("failed to parse update direction: diffRequest.UpdateDirection (valid: %v)", diffRequest.UpdateDirection.IsValid()),
@@ -286,7 +340,11 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte("Successfully updated applications")); err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on Update: %w", err).Error(),
+		)
 		http.Error(w, "failed to write response", http.StatusInternalServerError)
+
 		return
 	}
 }
@@ -294,6 +352,9 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *ApplicationHandler) CleanUpMeetings(w http.ResponseWriter, r *http.Request) {
 	updatedCount, err := h.applicationService.CleanUpMeetingsInBatches(r.Context(), cleanUpMeetingsBatchSize)
 	if err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on CleanUpMeetings: %w", err).Error(),
+		)
 		http.Error(w, "failed to CleanUpMeetingsInBatches", http.StatusInternalServerError)
 
 		return
@@ -308,6 +369,9 @@ func (h *ApplicationHandler) CleanUpMeetings(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		h.logger.Error(
+			fmt.Errorf("failure on CleanUpMeetings: %w", err).Error(),
+		)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 
 		return

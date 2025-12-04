@@ -114,7 +114,7 @@ func (r *ApplicationRepository) List(
 				query = query.Where("NOT (denied_email_received IS NOT NULL AND denied_email_id IS NOT NULL)")
 			}
 		default:
-			r.logger.Info(
+			r.logger.Debug(
 				fmt.Sprintf("Filtering by is_reply_email_received is not supported for status: %v", applicationStatusInclude),
 			)
 		}

@@ -49,6 +49,19 @@ func (s *SheetsService) Get(ctx context.Context, sheetID, sheetPage, ceilFrom, c
 	return result, nil
 }
 
+func (s *SheetsService) isAnyMandatoryFieldInvalid(r []string) bool {
+	if len(r) < 10 {
+		return true
+	}
+
+	switch "" {
+	case r[0], r[1], r[2], r[3], r[8], r[9]:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, rowTo int64) (map[int64]dto.SheetApplicationDTO, error) {
 	sheetRange := "A" + strconv.FormatInt(rowFrom, 10) + ":P" + strconv.FormatInt(rowTo, 10)
 	resp, err := s.client.Read(ctx, sheetRange, nil, nil)
@@ -65,12 +78,12 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 		}
 
 		// if last row is invalid, skip it -> it might be in work
+		if len(resp)-1 == i && s.isAnyMandatoryFieldInvalid(row) {
+			break
+		}
+
 		if len(row) < 10 {
-			if len(resp)-1 != i {
-				return nil, fmt.Errorf("incomplete data in Google sheet in range [%s]", sheetRange)
-			} else {
-				continue
-			}
+			return nil, fmt.Errorf("incomplete data in Google sheet in range [%s]", sheetRange)
 		}
 
 		appliedAt, err := tools.ParseSheetDateGivenInDaysSince(row[9], "02/01/2006")

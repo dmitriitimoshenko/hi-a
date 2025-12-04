@@ -48,7 +48,7 @@ type ApplicationDiffChange struct {
 // FETCH response
 
 type FetchRequest struct {
-	Data FetchData
+	Data FetchData `json:"data"`
 }
 
 type FetchData struct {
@@ -59,7 +59,7 @@ type FetchData struct {
 // LPR response
 
 type LastProcessedRowResponse struct {
-	Data LastProcessedRowData
+	Data LastProcessedRowData `json:"data"`
 }
 
 type LastProcessedRowData struct {
@@ -75,7 +75,7 @@ type ListRequest struct {
 }
 
 type ListResponse struct {
-	Data []ListApplicationData
+	Data []ListApplicationData `json:"data"`
 }
 
 type ListApplicationData struct {

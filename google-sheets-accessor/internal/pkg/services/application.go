@@ -784,7 +784,7 @@ func (s *ApplicationService) Fetch(ctx context.Context) (int64, int64, error) {
 	sheetApplications, err := s.sheets.GetApplicationsFromRows(ctx, *maxRowID, sheets.LastRow)
 	if err != nil {
 		return 0, 0, fmt.Errorf(
-			"failed to GetApplicationsFromRows with params maxRowID=%d and LastRow=%d: %w",
+			"failed to GetApplicationsFromRows with params StartRow=%d and LastRow=%d: %w",
 			*maxRowID,
 			sheets.LastRow,
 			err,

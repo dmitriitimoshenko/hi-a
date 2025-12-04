@@ -68,7 +68,7 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 
 		appliedAt, err := time.Parse("02/01/2006", row[9])
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse appliedAt value [%s] in row [%d]: %w", row[9], rowCnt, err)
+			return nil, fmt.Errorf("failed to parse appliedAt value [%s] in row [%d] with content [%v]: %w", row[9], rowCnt, row, err)
 		}
 
 		subResult := dto.SheetApplicationDTO{

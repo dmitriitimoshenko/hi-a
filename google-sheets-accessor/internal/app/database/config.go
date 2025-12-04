@@ -37,10 +37,9 @@ func LoadConfig() Config {
 
 func (c *databaseConfig) ToString() string {
 	str := fmt.Sprintf(
-		"user=%s password=%s database=%s host=%s",
-		c.config.User, c.config.Password, c.config.Name, c.config.Host,
+		"user=%s password=%s database=%s host=%s sslmode=%s",
+		c.config.User, c.config.Password, c.config.Name, c.config.Host, c.config.SSLMode,
 	)
-	str += fmt.Sprintf(" sslmode=%s", c.config.SSLMode)
 
 	return str
 }

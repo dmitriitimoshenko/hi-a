@@ -192,7 +192,12 @@ services:
     environment:
       - PORT=8083
       - GOOGLE_APPLICATION_CREDENTIALS=/secrets/gsa-credentials.json
-      - DATABASE_GOOGLE_SHEETS_ACCESSOR_URL=${DATABASE_GOOGLE_SHEETS_ACCESSOR_URL}
+      - GSA_DB_HOST=${GSA_DB_HOST}
+      - GSA_DB_PORT=${GSA_DB_PORT}
+      - GSA_DB_PASS=${GSA_DB_PASS}
+      - GSA_DB_USER=${GSA_DB_USER}
+      - GSA_DB_NAME=${GSA_DB_NAME}
+      - GSA_DB_SSLMODE=${GSA_DB_SSLMODE}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - KAFKA_SERVER=kafka:9092
       - KAFKA_CLIENT_ID=google-sheets-accessor

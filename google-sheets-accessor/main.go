@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -52,7 +53,12 @@ func run() error {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	db, err := database.NewConnection(database.LoadConfig().ToString())
+	dbCfg := database.LoadConfig()
+	logger.Info(
+		fmt.Sprintf("dg cfg: %+v", dbCfg),
+	)
+
+	db, err := database.NewConnection(dbCfg.ToString())
 	if err != nil {
 		return err
 	}

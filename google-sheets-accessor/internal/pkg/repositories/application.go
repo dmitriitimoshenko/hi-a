@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -66,12 +67,20 @@ func (r *ApplicationRepository) Save(ctx context.Context, application ...*models
 }
 
 func (r *ApplicationRepository) GetMaxRowID(ctx context.Context) (*int64, error) {
-	var count int64
-	if err := r.db.WithContext(ctx).Model(&models.Application{}).Count(&count).Error; err != nil {
+	var maxRowID sql.NullInt64
+
+	if err := r.db.WithContext(ctx).
+		Model(&models.Application{}).
+		Select("MAX(row_id)").
+		Scan(&maxRowID).Error; err != nil {
 		return nil, err
 	}
 
-	return &count, nil
+	if !maxRowID.Valid {
+		return tools.ToPtr[int64](0), nil
+	}
+
+	return tools.ToPtr(maxRowID.Int64), nil
 }
 
 func (r *ApplicationRepository) List(

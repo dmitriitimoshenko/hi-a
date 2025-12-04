@@ -1058,3 +1058,69 @@ func (s *ApplicationService) mapSheetApplicationDTOtoUpdateApplicationDTO(
 		SalaryProposed: salaryProposed,
 	}, nil
 }
+
+func (s *ApplicationService) CleanUpMeetingsInBatches(ctx context.Context, batchSize int64) (int64, error) {
+	var updatedCount int64
+	page := int64(1)
+	forward := true
+
+	for forward {
+		paginated, err := s.repository.Paginate(
+			ctx,
+			dto.PaginationParams{
+				Page:     page,
+				PageSize: batchSize,
+			},
+		)
+		if err != nil {
+			return updatedCount, fmt.Errorf("failed to paginate: %w", err)
+		}
+
+		updatedInIterationCount, err := s.cleanUpMeetings(ctx, paginated.Content)
+		if err != nil {
+			return updatedCount, fmt.Errorf("failed to clean up meetings: %w", err)
+		}
+		updatedCount += updatedInIterationCount
+
+		forward = paginated.NextPage != nil
+
+		if forward {
+			page = *paginated.NextPage
+		}
+	}
+
+	return updatedCount, nil
+}
+
+func (s *ApplicationService) cleanUpMeetings(ctx context.Context, applications []*models.Application) (int64, error) {
+	var updatedCount int64
+
+	g, gctx := errgroup.WithContext(ctx)
+
+	for _, application := range applications {
+		if application.Status == enums.ApplicationStatusMeeting &&
+			application.NextFollowUpAt.Truncate(time.Second).Before(time.Now()) {
+			application.Status = enums.ApplicationStatusPending
+
+			if err := s.repository.Save(ctx, application); err != nil {
+				return updatedCount, fmt.Errorf("failed to save updated applications")
+			}
+
+			updatedCount++
+
+			g.Go(func() error {
+				if err := s.SyncFromDB(gctx, application.ID); err != nil {
+					return err
+				}
+
+				return nil
+			})
+		}
+	}
+
+	if err := g.Wait(); err != nil {
+		return updatedCount, err
+	}
+
+	return updatedCount, nil
+}

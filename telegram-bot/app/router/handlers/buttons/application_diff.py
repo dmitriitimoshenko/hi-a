@@ -167,31 +167,37 @@ class ApplicationDiffButtonHandler:
         event_id: str,
     ) -> dict[str, Any] | None:
         application_id = payload.get("application_id")
+        application_row_id = payload.get("application_row_id") or payload.get("row_id")
 
-        if application_id is None:
+        normalized_application_id = self._normalize_int(
+            value=application_id,
+            field_name="application_id",
+            event_id=event_id,
+            is_required=False,
+        )
+        normalized_row_id = self._normalize_int(
+            value=application_row_id,
+            field_name="application_row_id",
+            event_id=event_id,
+            is_required=False,
+        )
+
+        if normalized_application_id is None and normalized_row_id is None:
             self._logger.warning(
-                "application_id is missing in diff payload for event_id=%s",
+                "Neither application_id nor application_row_id is available for event_id=%s",
                 event_id,
             )
 
             return None
 
-        try:
-            normalized_application_id = int(application_id)
-        except Exception as e:
-            self._logger.error(
-                "application_id is not an integer (event_id=%s, application_id=%s): %s",
-                event_id,
-                application_id,
-                e,
-            )
-
-            return None
-
-        request = {
-            "application_id": normalized_application_id,
+        request: dict[str, Any] = {
             "update_direction": update_direction,
         }
+
+        if normalized_application_id is not None:
+            request["application_id"] = normalized_application_id
+        if normalized_row_id is not None:
+            request["application_row_id"] = normalized_row_id
 
         return request
 
@@ -221,12 +227,46 @@ class ApplicationDiffButtonHandler:
             return False
 
         self._logger.info(
-            "Triggered diff update via GSA endpoint (application_id=%s direction=%s)",
+            "Triggered diff update via GSA endpoint (application_id=%s application_row_id=%s direction=%s)",
             request.get("application_id"),
+            request.get("application_row_id"),
             request.get("update_direction"),
         )
 
         return True
+
+    def _normalize_int(
+        self,
+        *,
+        value: Any,
+        field_name: str,
+        event_id: str,
+        is_required: bool,
+    ) -> int | None:
+        if value is None:
+            if is_required:
+                self._logger.warning(
+                    "%s is missing in diff payload for event_id=%s",
+                    field_name,
+                    event_id,
+                )
+
+            return None
+
+        try:
+            normalized_value = int(value)
+        except Exception as e:
+            self._logger.error(
+                "%s is not an integer (event_id=%s, value=%s): %s",
+                field_name,
+                event_id,
+                value,
+                e,
+            )
+
+            return None
+
+        return normalized_value
 
     async def _load_context(self, callback: CallbackQuery) -> CachedDiffContext | None:
         message = callback.message

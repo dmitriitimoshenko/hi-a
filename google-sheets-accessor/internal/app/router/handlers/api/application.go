@@ -12,6 +12,8 @@ import (
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/tools"
 )
 
+const cleanUpMeetingsBatchSize = 50
+
 type ApplicationHandler struct {
 	applicationService applicationService
 }
@@ -258,49 +260,15 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	dbApplication, err := h.applicationService.FindByID(
-		ctx,
-		diffRequest.ApplicationID,
-	)
-	if err != nil {
-		http.Error(
-			w,
-			fmt.Sprintf("failed to find applciation with id [%d] in the db", diffRequest.ApplicationID),
-			http.StatusInternalServerError,
-		)
-
-		return
-	}
-	if dbApplication == nil {
-		http.Error(
-			w,
-			fmt.Sprintf("no applciation with id [%d] in the db", diffRequest.ApplicationID),
-			http.StatusInternalServerError,
-		)
-
-		return
-	}
-
-	applicationDTO := dto.UpdateApplicationDTO{}
-	if err = applicationDTO.MapModel(dbApplication); err != nil {
-		http.Error(
-			w,
-			"failed to map application",
-			http.StatusInternalServerError,
-		)
-
-		return
-	}
-
 	switch diffRequest.UpdateDirection {
 	case enums.DiffUpdateDirectionExternal:
-		if err := h.applicationService.SyncFromDTO(ctx, applicationDTO); err != nil {
+		if err := h.applicationService.SyncFromDB(ctx, diffRequest.ApplicationID); err != nil {
 			http.Error(w, "failed to sync from db", http.StatusInternalServerError)
 
 			return
 		}
 	case enums.DiffUpdateDirectionInternal:
-		if err := h.applicationService.Update(ctx, applicationDTO); err != nil {
+		if err := h.applicationService.SyncFromSheet(ctx, diffRequest.ApplicationRowID); err != nil {
 			http.Error(w, "failed to sync from db", http.StatusInternalServerError)
 
 			return
@@ -311,6 +279,8 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("failed to parse update direction: diffRequest.UpdateDirection (valid: %v)", diffRequest.UpdateDirection.IsValid()),
 			http.StatusBadRequest,
 		)
+
+		return
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -319,5 +289,27 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to write response", http.StatusInternalServerError)
 		return
 	}
+}
 
+func (h *ApplicationHandler) CleanUpMeetings(w http.ResponseWriter, r *http.Request) {
+	updatedCount, err := h.applicationService.CleanUpMeetingsInBatches(r.Context(), cleanUpMeetingsBatchSize)
+	if err != nil {
+		http.Error(w, "failed to CleanUpMeetingsInBatches", http.StatusInternalServerError)
+
+		return
+	}
+
+	resp := &messages.CleanUpMeetingsResponse{
+		Data: messages.CleanupMeetingsData{
+			RowsReset: updatedCount,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+
+		return
+	}
 }

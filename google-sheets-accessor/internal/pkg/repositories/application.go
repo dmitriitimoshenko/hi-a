@@ -8,6 +8,8 @@ import (
 
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/enums"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/models"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services/dto"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/tools"
 	"gorm.io/gorm"
 )
 
@@ -115,4 +117,43 @@ func (r *ApplicationRepository) List(
 	}
 
 	return applications, nil
+}
+
+func (r *ApplicationRepository) Paginate(ctx context.Context, pp dto.PaginationParams) (*dto.PaginatedApplications, error) {
+	var (
+		appliations                []*models.Application
+		nextPage, previousPage     *int64
+		appliationsCount, lastPage int64
+	)
+
+	if err := r.db.WithContext(ctx).
+		Model(&models.Application{}).
+		Offset(int(pp.PageSize * (pp.Page - 1))).
+		Limit(int(pp.PageSize)).
+		Find(&appliations).
+		Count(&appliationsCount).
+		Error; err != nil {
+		return nil, err
+	}
+
+	lastPage = appliationsCount / pp.PageSize
+	if appliationsCount%pp.PageSize != 0 {
+		lastPage++
+	}
+
+	if lastPage > pp.Page {
+		nextPage = tools.ToPtr(pp.Page + 1)
+	}
+
+	if 1 < pp.Page {
+		previousPage = tools.ToPtr(pp.Page - 1)
+	}
+
+	return &dto.PaginatedApplications{
+		CurrentPage:  pp.Page,
+		LastPage:     lastPage,
+		NextPage:     nextPage,
+		PreviousPage: previousPage,
+		Content:      appliations,
+	}, nil
 }

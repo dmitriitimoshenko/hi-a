@@ -117,3 +117,16 @@ type ApplicationDiff struct {
 	DBValue    interface{}
 	Message    string
 }
+
+type PaginationParams struct {
+	Page     int64
+	PageSize int64
+}
+
+type PaginatedApplications struct {
+	CurrentPage  int64
+	LastPage     int64
+	NextPage     *int64
+	PreviousPage *int64
+	Content      []*models.Application
+}

@@ -123,6 +123,17 @@ type ListSalaryData struct {
 // UPDATE INTERNAL request
 
 type DiffUpdateRequest struct {
-	ApplicationID   int64                     `json:"application_id"`
-	UpdateDirection enums.DiffUpdateDirection `json:"update_direction"`
+	ApplicationID    int64                     `json:"application_id"`
+	ApplicationRowID int64                     `json:"application_row_id"`
+	UpdateDirection  enums.DiffUpdateDirection `json:"update_direction"`
+}
+
+// CLEAN UP MEETINGS response
+
+type CleanUpMeetingsResponse struct {
+	Data CleanupMeetingsData `json:"data"`
+}
+
+type CleanupMeetingsData struct {
+	RowsReset int64 `json:"rows_reset"`
 }

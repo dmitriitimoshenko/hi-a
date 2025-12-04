@@ -22,6 +22,9 @@ type applicationService interface {
 	FindByID(ctx context.Context, id int64) (*models.Application, error)
 	SyncFromDTO(ctx context.Context, applicationDTO dto.UpdateApplicationDTO) error
 	Update(ctx context.Context, applicationDTO dto.UpdateApplicationDTO) error
+	SyncFromDB(ctx context.Context, id int64) error
+	SyncFromSheet(ctx context.Context, rowID int64) error
+	CleanUpMeetingsInBatches(ctx context.Context, batchSize int64) (int64, error)
 }
 
 type applicationUpdateProcessedHandler interface {

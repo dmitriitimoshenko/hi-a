@@ -24,6 +24,7 @@ type applicationRepository interface {
 		ApplicationStatusExclude []enums.ApplicationStatus,
 		IsReplyEmailReceived bool,
 	) ([]*models.Application, error)
+	Paginate(ctx context.Context, pp dto.PaginationParams) (*dto.PaginatedApplications, error)
 }
 
 type salaryService interface {

@@ -30,7 +30,7 @@ func LoadConfig() Config {
 			Password: os.Getenv("GSA_DB_PASS"),
 			User:     os.Getenv("GSA_DB_USER"),
 			Name:     os.Getenv("GSA_DB_NAME"),
-			SSLMode:  os.Getenv("GSA_DB_SSLMODE"),
+			SSLMode:  "disable",
 		},
 	}
 }

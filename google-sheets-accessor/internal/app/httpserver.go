@@ -11,11 +11,13 @@ import (
 
 type HTTPServer struct {
 	applicationService applicationService
+	sheetsService      sheetsService
 }
 
-func NewHTTPServer(applicationService applicationService) *HTTPServer {
+func NewHTTPServer(applicationService applicationService, sheetsService sheetsService) *HTTPServer {
 	return &HTTPServer{
 		applicationService: applicationService,
+		sheetsService:      sheetsService,
 	}
 }
 
@@ -25,6 +27,7 @@ func (s *HTTPServer) Run(ctx context.Context) error {
 	router.SetupRoutes(
 		mux,
 		s.applicationService,
+		s.sheetsService,
 	)
 
 	secureMux := apiVersionMiddleware(mux)

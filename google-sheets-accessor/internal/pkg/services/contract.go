@@ -38,7 +38,7 @@ type salaryRepository interface {
 }
 
 type sheetsClient interface {
-	Read(ctx context.Context, sheetRange string) ([][]string, error)
+	Read(ctx context.Context, sheetRange string, spreadSheetID, spreadSheetPage *string) ([][]string, error)
 	Write(ctx context.Context, value string, ceil string) error
 }
 

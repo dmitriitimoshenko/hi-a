@@ -25,3 +25,7 @@ type applicationService interface {
 	SyncFromSheet(ctx context.Context, rowID int64) error
 	CleanUpMeetingsInBatches(ctx context.Context, batchSize int64) (int64, error)
 }
+
+type sheetsService interface {
+	Get(ctx context.Context, sheetID, sheetPage, ceilFrom, ceilTo string) ([][]string, error)
+}

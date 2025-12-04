@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/tools"
 	"google.golang.org/api/option"
 	sheetsapi "google.golang.org/api/sheets/v4"
 )
@@ -33,14 +34,21 @@ func New(ctx context.Context, cfg *Config) (*Client, error) {
 	return client, nil
 }
 
-func (c *Client) Read(ctx context.Context, sheetRange string) ([][]string, error) {
+func (c *Client) Read(ctx context.Context, sheetRange string, spreadSheetID, spreadSheetPage *string) ([][]string, error) {
 	requestCtx, cancel := context.WithTimeout(ctx, c.config.RequestTimeout)
 	defer cancel()
 
-	sheetRange = fmt.Sprintf("%s!%s", "applications_list", sheetRange)
+	if spreadSheetID == nil {
+		spreadSheetID = tools.ToPtr(c.config.SpreadSheetID)
+	}
+	if spreadSheetPage == nil {
+		spreadSheetPage = tools.ToPtr("applications_list")
+	}
+
+	sheetRange = fmt.Sprintf("%s!%s", *spreadSheetPage, sheetRange)
 
 	response, err := c.service.Spreadsheets.Values.
-		Get(c.config.SpreadSheetID, sheetRange).
+		Get(*spreadSheetID, sheetRange).
 		ValueRenderOption("UNFORMATTED_VALUE").
 		Context(requestCtx).
 		Do()

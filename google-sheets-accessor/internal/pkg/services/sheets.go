@@ -37,9 +37,20 @@ func (s *SheetsService) GetApplicationFromRow(ctx context.Context, rowID int64) 
 	return &application, nil
 }
 
-func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom int64, rowTo int64) (map[int64]dto.SheetApplicationDTO, error) {
+func (s *SheetsService) Get(ctx context.Context, sheetID, sheetPage, ceilFrom, ceilTo string) ([][]string, error) {
+	sheetRange := ceilFrom + ":" + ceilTo
+
+	result, err := s.client.Read(ctx, sheetRange, &sheetID, &sheetPage)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read sheet [%s] page [%s] range [%s:%s]", sheetID, sheetPage, ceilFrom, ceilTo)
+	}
+
+	return result, nil
+}
+
+func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, rowTo int64) (map[int64]dto.SheetApplicationDTO, error) {
 	sheetRange := "A" + strconv.FormatInt(rowFrom, 10) + ":P" + strconv.FormatInt(rowTo, 10)
-	resp, err := s.client.Read(ctx, sheetRange)
+	resp, err := s.client.Read(ctx, sheetRange, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", sheetRange, err)
 	}
@@ -139,7 +150,7 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom int
 
 func (s *SheetsService) GetCompany(ctx context.Context, rowID int64) (*string, error) {
 	ceil := "A" + strconv.FormatInt(rowID, 10)
-	resp, err := s.client.Read(ctx, ceil)
+	resp, err := s.client.Read(ctx, ceil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
 	}
@@ -160,7 +171,7 @@ func (s *SheetsService) SetCompany(ctx context.Context, rowID int64, company str
 
 func (s *SheetsService) GetEmploymentType(ctx context.Context, rowID int64) (*enums.EmploymentType, error) {
 	ceil := "B" + strconv.FormatInt(rowID, 10)
-	resp, err := s.client.Read(ctx, ceil)
+	resp, err := s.client.Read(ctx, ceil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
 	}
@@ -184,7 +195,7 @@ func (s *SheetsService) SetEmploymentType(ctx context.Context, rowID int64, empl
 
 func (s *SheetsService) GetWorkMode(ctx context.Context, rowID int64) (*enums.WorkMode, error) {
 	ceil := "C" + strconv.FormatInt(rowID, 10)
-	resp, err := s.client.Read(ctx, ceil)
+	resp, err := s.client.Read(ctx, ceil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
 	}
@@ -208,7 +219,7 @@ func (s *SheetsService) SetWorkMode(ctx context.Context, rowID int64, workMode e
 
 func (s *SheetsService) GetTitle(ctx context.Context, rowID int64) (*string, error) {
 	ceil := "D" + strconv.FormatInt(rowID, 10)
-	resp, err := s.client.Read(ctx, ceil)
+	resp, err := s.client.Read(ctx, ceil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
 	}
@@ -229,19 +240,19 @@ func (s *SheetsService) SetTitle(ctx context.Context, rowID int64, title string)
 
 func (s *SheetsService) GetSalaryApplied(ctx context.Context, rowID int64) (*dto.SalaryDataDTO, error) {
 	ceilAmount := "E" + strconv.FormatInt(rowID, 10)
-	respAmount, err := s.client.Read(ctx, ceilAmount)
+	respAmount, err := s.client.Read(ctx, ceilAmount, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceilAmount, err)
 	}
 
 	ceilCurrency := "G" + strconv.FormatInt(rowID, 10)
-	respCurrency, err := s.client.Read(ctx, ceilCurrency)
+	respCurrency, err := s.client.Read(ctx, ceilCurrency, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceilCurrency, err)
 	}
 
 	ceilPeriod := "H" + strconv.FormatInt(rowID, 10)
-	respPeriod, err := s.client.Read(ctx, ceilPeriod)
+	respPeriod, err := s.client.Read(ctx, ceilPeriod, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceilPeriod, err)
 	}
@@ -317,19 +328,19 @@ func (s *SheetsService) SetSalaryApplied(ctx context.Context, rowID int64, salar
 
 func (s *SheetsService) GetSalaryProposed(ctx context.Context, rowID int64) (*dto.SalaryDataDTO, error) {
 	ceilAmount := "F" + strconv.FormatInt(rowID, 10)
-	respAmount, err := s.client.Read(ctx, ceilAmount)
+	respAmount, err := s.client.Read(ctx, ceilAmount, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceilAmount, err)
 	}
 
 	ceilCurrency := "G" + strconv.FormatInt(rowID, 10)
-	respCurrency, err := s.client.Read(ctx, ceilCurrency)
+	respCurrency, err := s.client.Read(ctx, ceilCurrency, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceilCurrency, err)
 	}
 
 	ceilPeriod := "H" + strconv.FormatInt(rowID, 10)
-	respPeriod, err := s.client.Read(ctx, ceilPeriod)
+	respPeriod, err := s.client.Read(ctx, ceilPeriod, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceilPeriod, err)
 	}
@@ -405,7 +416,7 @@ func (s *SheetsService) SetSalaryProposed(ctx context.Context, rowID int64, sala
 
 func (s *SheetsService) GetStatus(ctx context.Context, rowID int64) (*enums.ApplicationStatus, error) {
 	ceil := "I" + strconv.FormatInt(rowID, 10)
-	resp, err := s.client.Read(ctx, ceil)
+	resp, err := s.client.Read(ctx, ceil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
 	}
@@ -429,7 +440,7 @@ func (s *SheetsService) SetStatus(ctx context.Context, rowID int64, status enums
 
 func (s *SheetsService) GetAppliedAt(ctx context.Context, rowID int64) (*time.Time, error) {
 	ceil := "J" + strconv.FormatInt(rowID, 10)
-	resp, err := s.client.Read(ctx, ceil)
+	resp, err := s.client.Read(ctx, ceil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
 	}
@@ -455,7 +466,7 @@ func (s *SheetsService) SetAppliedAt(ctx context.Context, rowID int64, appliedAt
 
 func (s *SheetsService) GetRespondedAt(ctx context.Context, rowID int64) (*time.Time, error) {
 	ceil := "K" + strconv.FormatInt(rowID, 10)
-	resp, err := s.client.Read(ctx, ceil)
+	resp, err := s.client.Read(ctx, ceil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
 	}
@@ -481,7 +492,7 @@ func (s *SheetsService) SetRespondedAt(ctx context.Context, rowID int64, respond
 
 func (s *SheetsService) GetNextFollowUpAt(ctx context.Context, rowID int64) (*time.Time, error) {
 	ceil := "L" + strconv.FormatInt(rowID, 10)
-	resp, err := s.client.Read(ctx, ceil)
+	resp, err := s.client.Read(ctx, ceil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
 	}
@@ -507,7 +518,7 @@ func (s *SheetsService) SetNextFollowUpAt(ctx context.Context, rowID int64, next
 
 func (s *SheetsService) GetStage(ctx context.Context, rowID int64) (*string, error) {
 	ceil := "M" + strconv.FormatInt(rowID, 10)
-	resp, err := s.client.Read(ctx, ceil)
+	resp, err := s.client.Read(ctx, ceil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
 	}
@@ -532,7 +543,7 @@ func (s *SheetsService) SetStage(ctx context.Context, rowID int64, stage *int64)
 
 func (s *SheetsService) GetContacts(ctx context.Context, rowID int64) (*string, error) {
 	ceil := "N" + strconv.FormatInt(rowID, 10)
-	resp, err := s.client.Read(ctx, ceil)
+	resp, err := s.client.Read(ctx, ceil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
 	}
@@ -553,7 +564,7 @@ func (s *SheetsService) SetContacts(ctx context.Context, rowID int64, contacts s
 
 func (s *SheetsService) GetJobDescription(ctx context.Context, rowID int64) (*string, error) {
 	ceil := "O" + strconv.FormatInt(rowID, 10)
-	resp, err := s.client.Read(ctx, ceil)
+	resp, err := s.client.Read(ctx, ceil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
 	}
@@ -574,7 +585,7 @@ func (s *SheetsService) SetJobDescription(ctx context.Context, rowID int64, jobD
 
 func (s *SheetsService) GetNotes(ctx context.Context, rowID int64) (*string, error) {
 	ceil := "P" + strconv.FormatInt(rowID, 10)
-	resp, err := s.client.Read(ctx, ceil)
+	resp, err := s.client.Read(ctx, ceil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google sheet in range [%s]: %w", ceil, err)
 	}

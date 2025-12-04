@@ -28,12 +28,18 @@ type applicationService interface {
 	CleanUpMeetingsInBatches(ctx context.Context, batchSize int64) (int64, error)
 }
 
+type sheetsService interface {
+	Get(ctx context.Context, sheetID, sheetPage, ceilFrom, ceilTo string) ([][]string, error)
+}
+
 func SetupRoutes(
 	mux *http.ServeMux,
 	applicationService applicationService,
+	sheetsService sheetsService,
 ) {
 	healthCheckHandler := api.NewHealthCheckHandler()
 	applicationHandler := api.NewApplicationHandler(applicationService)
+	sheetsHandler := api.NewSheetsHandler(sheetsService)
 
 	mux.HandleFunc("GET /api/health-check", healthCheckHandler.HealthCheck)
 
@@ -44,5 +50,5 @@ func SetupRoutes(
 	mux.HandleFunc("POST /api/application/diff/update", applicationHandler.Update)
 	mux.HandleFunc("POST /api/application/cleanup-meetings", applicationHandler.CleanUpMeetings)
 
-	// mux.HandleFunc("POST /api/sheet/get", sheetHandler.Get)
+	mux.HandleFunc("POST /api/sheet/get", sheetsHandler.Get)
 }

@@ -38,3 +38,7 @@ type saveApplicationEmbeddingHandler interface {
 type saveApplicationEmbedding interface {
 	Handle(ctx context.Context, message kafkaclient.Message) error
 }
+
+type sheetsService interface {
+	Get(ctx context.Context, sheetID, sheetPage, ceilFrom, ceilTo string) ([][]string, error)
+}

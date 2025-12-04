@@ -17,7 +17,9 @@ headers = {"content-type": "application/json", "x-api-version": "1"}
 
 for sheet in sheet_names:
     data = {
-        "range": f"{sheet}!A2:D1000",
+        "page": f"{sheet}",
+        "ceil_from": "A2",
+        "ceil_to": "D1000",
         "id": "1aL-YihxtzedaIT2kPBPAXiQ4C5iKAI_ANjJTJvVbYng",
     }
     print(f"request_data: {data}")

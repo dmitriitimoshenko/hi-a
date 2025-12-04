@@ -69,9 +69,9 @@ type LastProcessedRowData struct {
 // LIST request
 
 type ListRequest struct {
-	ApplicationStatusInclude []enums.ApplicationStatus
-	ApplicationStatusExclude []enums.ApplicationStatus
-	IsReplyEmailReceived     bool
+	ApplicationStatusInclude []enums.ApplicationStatus `json:"application_status_include"`
+	ApplicationStatusExclude []enums.ApplicationStatus `json:"application_status_exclude"`
+	IsReplyEmailReceived     bool                      `json:"is_reply_email_received"`
 }
 
 type ListResponse struct {

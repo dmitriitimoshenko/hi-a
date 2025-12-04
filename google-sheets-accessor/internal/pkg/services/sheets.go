@@ -77,12 +77,11 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 			continue
 		}
 
-		// if last row is invalid, skip it -> it might be in work
-		if len(resp)-1 == i && s.isAnyMandatoryFieldInvalid(row) {
-			break
-		}
-
-		if len(row) < 10 {
+		if s.isAnyMandatoryFieldInvalid(row) {
+			// if last row is invalid, skip it -> it might be in work
+			if len(resp)-1 == i {
+				break
+			}
 			return nil, fmt.Errorf("incomplete data in Google sheet in range [%s]", sheetRange)
 		}
 

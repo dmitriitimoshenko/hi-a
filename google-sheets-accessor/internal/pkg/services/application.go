@@ -1053,7 +1053,7 @@ func (s *ApplicationService) mapSheetApplicationDTOtoUpdateApplicationDTO(
 		NextFollowUpAt: applicationFromSheetDTO.NextFollowUpAt,
 		Stage:          applicationFromSheetDTO.Stage,
 		Meta:           applicationFromSheetDTO.Meta,
-		Embedding:      dbApplication.Embedding.Slice(),
+		Embedding:      tools.EmbeddingToSlice(dbApplication.Embedding),
 		SalaryApplied:  salaryApplied,
 		SalaryProposed: salaryProposed,
 	}, nil

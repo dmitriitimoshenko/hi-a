@@ -256,7 +256,7 @@ func (h *ApplicationHandler) mapListToResponse(applications []*models.Applicatio
 			MeetingCnclEmailReceived: application.MeetingCnclEmailReceived,
 			MeetingCnclEmailID:       application.MeetingCnclEmailID,
 			Meta:                     &meta,
-			Embedding:                application.Embedding.Slice(),
+			Embedding:                tools.EmbeddingToSlice(application.Embedding),
 		}
 
 		if application.SalaryApplied != nil {

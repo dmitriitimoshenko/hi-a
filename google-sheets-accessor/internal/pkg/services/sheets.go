@@ -86,8 +86,10 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 
 		if row[6] != "" && row[7] != "" {
 			if row[4] != "" {
-				subResult.SalaryApplied.Currency = row[6]
-				subResult.SalaryApplied.Period = enums.SalaryPeriod(row[7])
+				subResult.SalaryApplied = &dto.SheetApplicationSalaryDTO{
+					Currency: row[6],
+					Period:   enums.SalaryPeriod(row[7]),
+				}
 				salaryAppliedAmountFrom, salaryAppliedAmountTo, ok := tools.ParseSalaryRange(row[4])
 				if !ok {
 					return nil, fmt.Errorf("failed to parse salaryApplied amount value [%s] in row [%d]", row[4], rowCnt)
@@ -96,8 +98,10 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 				subResult.SalaryApplied.AmountTo = &salaryAppliedAmountTo
 			}
 			if row[5] != "" {
-				subResult.SalaryProposed.Currency = row[6]
-				subResult.SalaryProposed.Period = enums.SalaryPeriod(row[7])
+				subResult.SalaryProposed = &dto.SheetApplicationSalaryDTO{
+					Currency: row[6],
+					Period:   enums.SalaryPeriod(row[7]),
+				}
 				salaryProposedAmountFrom, salaryProposedAmountTo, ok := tools.ParseSalaryRange(row[5])
 				if !ok {
 					return nil, fmt.Errorf("failed to parse salaryProposed amount value [%s] in row [%d]", row[5], rowCnt)

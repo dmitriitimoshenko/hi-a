@@ -28,7 +28,10 @@ func NewApplicationRepository(
 
 func (r *ApplicationRepository) FindByID(ctx context.Context, id int64) (*models.Application, error) {
 	var application *models.Application
-	if err := r.db.WithContext(ctx).Find(&application, id).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Preload("SalaryApplied").
+		Preload("SalaryProposed").
+		Find(&application, id).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}

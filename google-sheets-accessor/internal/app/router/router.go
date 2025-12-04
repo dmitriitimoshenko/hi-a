@@ -20,6 +20,9 @@ type applicationService interface {
 		applicationStatusExclude []enums.ApplicationStatus,
 		isReplyEmailReceived bool,
 	) ([]*models.Application, error)
+	FindByID(ctx context.Context, id int64) (*models.Application, error)
+	SyncFromDTO(ctx context.Context, applicationDTO dto.UpdateApplicationDTO) error
+	Update(ctx context.Context, applicationDTO dto.UpdateApplicationDTO) error
 }
 
 func SetupRoutes(
@@ -35,8 +38,7 @@ func SetupRoutes(
 	mux.HandleFunc("POST /api/application/fetch", applicationHandler.Fetch)
 	mux.HandleFunc("POST /api/application/last-processed-row", applicationHandler.LastProcessedRow)
 	mux.HandleFunc("POST /api/application/list", applicationHandler.List)
-	// mux.HandleFunc("POST /api/application/update-internal", applicationHandler.UpdateInternal)
-	// mux.HandleFunc("POST /api/application/update-external", applicationHandler.UpdateExternal)
+	mux.HandleFunc("POST /api/application/diff/update", applicationHandler.Update)
 	// mux.HandleFunc("POST /api/application/cleanup-meetings", applicationHandler.CleanUpMeetings)
 
 	// mux.HandleFunc("POST /api/sheet/get", sheetHandler.Get)

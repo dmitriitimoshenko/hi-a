@@ -1,6 +1,10 @@
 package applicationupdateprocessed
 
-import "time"
+import (
+	"time"
+
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/enums"
+)
 
 type ApplicationUpdatePayload struct {
 	Action            string             `json:"action,omitempty"`
@@ -46,29 +50,29 @@ type IcsFileData struct {
 }
 
 type ApplicationPayload struct {
-	ID             int64             `json:"id"`
-	RowID          int64             `json:"row_id"`
-	Company        string            `json:"company"`
-	Title          string            `json:"title"`
-	EmploymentType string            `json:"employment_type"`
-	WorkMode       string            `json:"work_mode"`
-	Status         string            `json:"status"`
-	AppliedAt      time.Time         `json:"applied_at,omitempty"`
-	RespondedAt    *time.Time        `json:"responded_at,omitempty"`
-	NextFollowUpAt *time.Time        `json:"next_follow_up_at,omitempty"`
-	Stage          *int64             `json:"stage"`
-	Meta           map[string]string `json:"meta,omitempty"`
-	Embedding      []float32         `json:"embedding,omitempty"`
-	SalaryApplied  *Salary           `json:"salary_applied,omitempty"`
-	SalaryProposed *Salary           `json:"salary_proposed,omitempty"`
+	ID             int64                   `json:"id"`
+	RowID          int64                   `json:"row_id"`
+	Company        string                  `json:"company"`
+	Title          string                  `json:"title"`
+	EmploymentType enums.EmploymentType    `json:"employment_type"`
+	WorkMode       enums.WorkMode          `json:"work_mode"`
+	Status         enums.ApplicationStatus `json:"status"`
+	AppliedAt      time.Time               `json:"applied_at,omitempty"`
+	RespondedAt    *time.Time              `json:"responded_at,omitempty"`
+	NextFollowUpAt *time.Time              `json:"next_follow_up_at,omitempty"`
+	Stage          *int64                  `json:"stage"`
+	Meta           map[string]string       `json:"meta,omitempty"`
+	Embedding      []float32               `json:"embedding,omitempty"`
+	SalaryApplied  *Salary                 `json:"salary_applied,omitempty"`
+	SalaryProposed *Salary                 `json:"salary_proposed,omitempty"`
 }
 
 type Salary struct {
-	ID         int64     `json:"id"`
-	CreatedAt  time.Time `json:"created_at,omitempty"`
-	UpdatedAt  time.Time `json:"updated_at,omitempty"`
-	AmountFrom *float64  `json:"amount_from,omitempty"`
-	AmountTo   *float64  `json:"amount_to,omitempty"`
-	Currency   string    `json:"currency"`
-	Period     string    `json:"period"`
+	ID         int64              `json:"id"`
+	CreatedAt  time.Time          `json:"created_at,omitempty"`
+	UpdatedAt  time.Time          `json:"updated_at,omitempty"`
+	AmountFrom *float64           `json:"amount_from,omitempty"`
+	AmountTo   *float64           `json:"amount_to,omitempty"`
+	Currency   string             `json:"currency"`
+	Period     enums.SalaryPeriod `json:"period"`
 }

@@ -70,7 +70,7 @@ func (s *ApplicationService) UpdateAndSync(ctx context.Context, application dto.
 		return fmt.Errorf("failed to Update application with DTO: \n%+v", application)
 	}
 
-	if err := s.SyncFromDB(ctx, application); err != nil {
+	if err := s.SyncFromDTO(ctx, application); err != nil {
 		return fmt.Errorf("failed to SyncFromDB application with DTO: \n%+v", application)
 	}
 
@@ -160,7 +160,7 @@ func (s *ApplicationService) Update(ctx context.Context, applicationDTO dto.Upda
 	return nil
 }
 
-func (s *ApplicationService) SyncFromDB(ctx context.Context, applicationDTO dto.UpdateApplicationDTO) error {
+func (s *ApplicationService) SyncFromDTO(ctx context.Context, applicationDTO dto.UpdateApplicationDTO) error {
 	applicationRowID := applicationDTO.RowID
 
 	applicationFromSheetDTO, err := s.sheets.GetApplicationFromRow(ctx, applicationRowID)
@@ -204,19 +204,19 @@ func (s *ApplicationService) execSyncFromDB(
 			return s.sheets.SetTitle(groupCtx, rowID, title)
 		})
 	}
-	if applicationDTO.EmploymentType != string(applicationFromSheetDTO.EmploymentType) {
+	if applicationDTO.EmploymentType != applicationFromSheetDTO.EmploymentType {
 		employmentType := enums.EmploymentType(applicationDTO.EmploymentType)
 		group.Go(func() error {
 			return s.sheets.SetEmploymentType(groupCtx, rowID, employmentType)
 		})
 	}
-	if applicationDTO.WorkMode != string(applicationFromSheetDTO.WorkMode) {
+	if applicationDTO.WorkMode != applicationFromSheetDTO.WorkMode {
 		workMode := enums.WorkMode(applicationDTO.WorkMode)
 		group.Go(func() error {
 			return s.sheets.SetWorkMode(groupCtx, rowID, workMode)
 		})
 	}
-	if applicationDTO.Status != string(applicationFromSheetDTO.Status) {
+	if applicationDTO.Status != applicationFromSheetDTO.Status {
 		status := enums.ApplicationStatus(applicationDTO.Status)
 		group.Go(func() error {
 			return s.sheets.SetStatus(groupCtx, rowID, status)
@@ -305,7 +305,7 @@ func (s *ApplicationService) execSyncFromDB(
 		if *applicationDTO.SalaryApplied.AmountFrom != *applicationFromSheetDTO.SalaryApplied.AmountFrom ||
 			*applicationDTO.SalaryApplied.AmountTo != *applicationFromSheetDTO.SalaryApplied.AmountTo ||
 			applicationDTO.SalaryApplied.Currency != applicationFromSheetDTO.SalaryApplied.Currency ||
-			applicationDTO.SalaryApplied.Period != string(applicationFromSheetDTO.SalaryApplied.Period) {
+			applicationDTO.SalaryApplied.Period != applicationFromSheetDTO.SalaryApplied.Period {
 			salaryDataDTO := dto.SalaryDataDTO{
 				AmountFrom: applicationDTO.SalaryApplied.AmountFrom,
 				AmountTo:   applicationDTO.SalaryApplied.AmountTo,
@@ -336,7 +336,7 @@ func (s *ApplicationService) execSyncFromDB(
 		if *applicationDTO.SalaryProposed.AmountFrom != *applicationFromSheetDTO.SalaryProposed.AmountFrom ||
 			*applicationDTO.SalaryProposed.AmountTo != *applicationFromSheetDTO.SalaryProposed.AmountTo ||
 			applicationDTO.SalaryProposed.Currency != applicationFromSheetDTO.SalaryProposed.Currency ||
-			applicationDTO.SalaryProposed.Period != string(applicationFromSheetDTO.SalaryProposed.Period) {
+			applicationDTO.SalaryProposed.Period != applicationFromSheetDTO.SalaryProposed.Period {
 			salaryDataDTO := dto.SalaryDataDTO{
 				AmountFrom: applicationDTO.SalaryProposed.AmountFrom,
 				AmountTo:   applicationDTO.SalaryProposed.AmountTo,
@@ -812,7 +812,7 @@ func (s *ApplicationService) mapSheetApplicationToModel(
 
 	for rowID, sheetApplication := range sheetApplications {
 		var dbApplication *models.Application
-		s.db.WithContext(ctx).Transaction(
+		if err := s.db.WithContext(ctx).Transaction(
 			func(tx *gorm.DB) error {
 				var stageStr *string
 				if sheetApplication.Stage != nil {
@@ -833,7 +833,7 @@ func (s *ApplicationService) mapSheetApplicationToModel(
 						AmountFrom: salaryAppliedAmountFrom,
 						AmountTo:   salaryAppliedAmountTo,
 						Currency:   sheetApplication.SalaryApplied.Currency,
-						Period:     string(sheetApplication.SalaryApplied.Period),
+						Period:     sheetApplication.SalaryApplied.Period,
 					}
 				}
 
@@ -849,7 +849,7 @@ func (s *ApplicationService) mapSheetApplicationToModel(
 						AmountFrom: salaryProposedAmountFrom,
 						AmountTo:   salaryProposedAmountTo,
 						Currency:   sheetApplication.SalaryProposed.Currency,
-						Period:     string(sheetApplication.SalaryProposed.Period),
+						Period:     sheetApplication.SalaryProposed.Period,
 					}
 				}
 
@@ -893,7 +893,9 @@ func (s *ApplicationService) mapSheetApplicationToModel(
 
 				return nil
 			},
-		)
+		); err != nil {
+			return 0, 0, fmt.Errorf("failed to exec transaction: %w", err)
+		}
 
 		g.Go(func() error {
 			kafkaPayload := []byte(
@@ -950,4 +952,109 @@ func (s *ApplicationService) List(
 	}
 
 	return l, nil
+}
+
+func (s *ApplicationService) FindByID(ctx context.Context, id int64) (*models.Application, error) {
+	application, err := s.repository.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return application, nil
+}
+
+func (s *ApplicationService) SyncFromDB(ctx context.Context, id int64) error {
+	dbApplication, err := s.repository.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if dbApplication == nil {
+		return fmt.Errorf("no application with id [%d] found in the db", id)
+	}
+	applicationDTO := dto.UpdateApplicationDTO{}
+	if err = applicationDTO.MapModel(dbApplication); err != nil {
+		return fmt.Errorf("failed to map: %w", err)
+	}
+
+	applicationFromSheetDTO, err := s.sheets.GetApplicationFromRow(ctx, dbApplication.RowID)
+	if err != nil {
+		return fmt.Errorf("failed to get application from Google Sheets by row ID [%d]: %w", dbApplication.RowID, err)
+	}
+
+	if err := s.execSyncFromDB(ctx, applicationDTO, applicationFromSheetDTO); err != nil {
+		return fmt.Errorf("failed to SyncFromDB to Google Sheets for row ID [%d]: %w", dbApplication.RowID, err)
+	}
+
+	return nil
+}
+
+func (s *ApplicationService) SyncFromSheet(ctx context.Context, rowID int64) error {
+	applicationFromSheetDTO, err := s.sheets.GetApplicationFromRow(ctx, rowID)
+	if err != nil {
+		return fmt.Errorf("failed to get application from Google Sheets by row ID [%d]: %w", rowID, err)
+	}
+
+	applicationDTO, err := s.mapSheetApplicationDTOtoUpdateApplicationDTO(ctx, rowID, applicationFromSheetDTO)
+	if err != nil {
+		return fmt.Errorf("failed to mapSheetApplicationDTOtoUpdateApplicationDTO with rowID [%d]", rowID)
+	}
+	if applicationDTO == nil {
+		return fmt.Errorf("failed to mapSheetApplicationDTOtoUpdateApplicationDTO with rowID [%d], result empty", rowID)
+	}
+
+	if err = s.Update(ctx, *applicationDTO); err != nil {
+		return fmt.Errorf("failed to update application with rowID [%d]: %w", rowID, err)
+	}
+
+	return nil
+}
+
+func (s *ApplicationService) mapSheetApplicationDTOtoUpdateApplicationDTO(
+	ctx context.Context,
+	rowID int64,
+	applicationFromSheetDTO *dto.SheetApplicationDTO,
+) (*dto.UpdateApplicationDTO, error) {
+	dbApplication, err := s.repository.FindByRowID(ctx, rowID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to FindByRowID [%d]: %w", rowID, err)
+	}
+	if dbApplication == nil {
+		return nil, fmt.Errorf("no application with rowID [%d] in the db", rowID)
+	}
+
+	var salaryApplied, salaryProposed *dto.UpdateApplicationSalaryDTO
+	if applicationFromSheetDTO.SalaryApplied != nil {
+		salaryApplied = &dto.UpdateApplicationSalaryDTO{
+			AmountFrom: applicationFromSheetDTO.SalaryApplied.AmountFrom,
+			AmountTo:   applicationFromSheetDTO.SalaryApplied.AmountTo,
+			Currency:   applicationFromSheetDTO.SalaryApplied.Currency,
+			Period:     applicationFromSheetDTO.SalaryApplied.Period,
+		}
+	}
+	if applicationFromSheetDTO.SalaryProposed != nil {
+		salaryProposed = &dto.UpdateApplicationSalaryDTO{
+			AmountFrom: applicationFromSheetDTO.SalaryProposed.AmountFrom,
+			AmountTo:   applicationFromSheetDTO.SalaryProposed.AmountTo,
+			Currency:   applicationFromSheetDTO.SalaryProposed.Currency,
+			Period:     applicationFromSheetDTO.SalaryProposed.Period,
+		}
+	}
+
+	return &dto.UpdateApplicationDTO{
+		ID:             dbApplication.ID,
+		RowID:          rowID,
+		Company:        applicationFromSheetDTO.Company,
+		Title:          applicationFromSheetDTO.Title,
+		EmploymentType: applicationFromSheetDTO.EmploymentType,
+		WorkMode:       applicationFromSheetDTO.WorkMode,
+		Status:         applicationFromSheetDTO.Status,
+		AppliedAt:      applicationFromSheetDTO.AppliedAt,
+		RespondedAt:    applicationFromSheetDTO.RespondedAt,
+		NextFollowUpAt: applicationFromSheetDTO.NextFollowUpAt,
+		Stage:          applicationFromSheetDTO.Stage,
+		Meta:           applicationFromSheetDTO.Meta,
+		Embedding:      dbApplication.Embedding.Slice(),
+		SalaryApplied:  salaryApplied,
+		SalaryProposed: salaryProposed,
+	}, nil
 }

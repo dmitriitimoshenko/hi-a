@@ -111,11 +111,18 @@ type ListApplicationData struct {
 }
 
 type ListSalaryData struct {
-	ID         int64     `json:"id"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-	AmountFrom *float64  `json:"amount_from"`
-	AmountTo   *float64  `json:"amount_to"`
-	Currency   string    `json:"currency"`
-	Period     string    `json:"period"`
+	ID         int64              `json:"id"`
+	CreatedAt  time.Time          `json:"created_at"`
+	UpdatedAt  time.Time          `json:"updated_at"`
+	AmountFrom *float64           `json:"amount_from"`
+	AmountTo   *float64           `json:"amount_to"`
+	Currency   string             `json:"currency"`
+	Period     enums.SalaryPeriod `json:"period"`
+}
+
+// UPDATE INTERNAL request
+
+type DiffUpdateRequest struct {
+	ApplicationID   int64                     `json:"application_id"`
+	UpdateDirection enums.DiffUpdateDirection `json:"update_direction"`
 }

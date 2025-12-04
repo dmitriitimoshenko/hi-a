@@ -2,9 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/router/handlers/api/messages"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/enums"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/models"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services/dto"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/tools"
@@ -19,8 +21,6 @@ func NewApplicationHandler(applicationService applicationService) *ApplicationHa
 }
 
 func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 
@@ -57,6 +57,7 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
@@ -91,8 +92,6 @@ func (h *ApplicationHandler) mapDiffToResponse(diffs []dto.ApplicationDiffEntry)
 }
 
 func (h *ApplicationHandler) Fetch(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	applicationsSavedAmount, salariesSavedAmount, err := h.applicationService.Fetch(r.Context())
 	if err != nil {
 		http.Error(w, "failed to get applications fetch", http.StatusInternalServerError)
@@ -107,6 +106,7 @@ func (h *ApplicationHandler) Fetch(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
@@ -116,8 +116,6 @@ func (h *ApplicationHandler) Fetch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ApplicationHandler) LastProcessedRow(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	maxRowID, err := h.applicationService.GetMaxRowID(r.Context())
 	if err != nil {
 		http.Error(w, "failed to get Last Processed Row", http.StatusInternalServerError)
@@ -136,6 +134,7 @@ func (h *ApplicationHandler) LastProcessedRow(w http.ResponseWriter, r *http.Req
 		},
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
@@ -145,8 +144,6 @@ func (h *ApplicationHandler) LastProcessedRow(w http.ResponseWriter, r *http.Req
 }
 
 func (h *ApplicationHandler) List(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 
@@ -175,6 +172,7 @@ func (h *ApplicationHandler) List(w http.ResponseWriter, r *http.Request) {
 		Data: listResp,
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
@@ -245,4 +243,81 @@ func (h *ApplicationHandler) mapListToResponse(applications []*models.Applicatio
 	}
 
 	return result
+}
+
+func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+
+	var diffRequest messages.DiffUpdateRequest
+	if err := decoder.Decode(&diffRequest); err != nil {
+		http.Error(w, "invalid request payload", http.StatusBadRequest)
+
+		return
+	}
+
+	ctx := r.Context()
+
+	dbApplication, err := h.applicationService.FindByID(
+		ctx,
+		diffRequest.ApplicationID,
+	)
+	if err != nil {
+		http.Error(
+			w,
+			fmt.Sprintf("failed to find applciation with id [%d] in the db", diffRequest.ApplicationID),
+			http.StatusInternalServerError,
+		)
+
+		return
+	}
+	if dbApplication == nil {
+		http.Error(
+			w,
+			fmt.Sprintf("no applciation with id [%d] in the db", diffRequest.ApplicationID),
+			http.StatusInternalServerError,
+		)
+
+		return
+	}
+
+	applicationDTO := dto.UpdateApplicationDTO{}
+	if err = applicationDTO.MapModel(dbApplication); err != nil {
+		http.Error(
+			w,
+			"failed to map application",
+			http.StatusInternalServerError,
+		)
+
+		return
+	}
+
+	switch diffRequest.UpdateDirection {
+	case enums.DiffUpdateDirectionExternal:
+		if err := h.applicationService.SyncFromDTO(ctx, applicationDTO); err != nil {
+			http.Error(w, "failed to sync from db", http.StatusInternalServerError)
+
+			return
+		}
+	case enums.DiffUpdateDirectionInternal:
+		if err := h.applicationService.Update(ctx, applicationDTO); err != nil {
+			http.Error(w, "failed to sync from db", http.StatusInternalServerError)
+
+			return
+		}
+	default:
+		http.Error(
+			w,
+			fmt.Sprintf("failed to parse update direction: diffRequest.UpdateDirection (valid: %v)", diffRequest.UpdateDirection.IsValid()),
+			http.StatusBadRequest,
+		)
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte("Successfully updated applications")); err != nil {
+		http.Error(w, "failed to write response", http.StatusInternalServerError)
+		return
+	}
+
 }

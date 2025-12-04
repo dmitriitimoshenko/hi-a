@@ -16,6 +16,9 @@ APPLICATION_DIFF_REDIS_PREFIX = "application_diff"
 HEADERS = {
     "content-type": "application/json",
 }
+DIFF_UPDATE_ENDPOINT = "/api/application/diff/update"
+UPDATE_DIRECTION_INTERNAL = "internal"
+UPDATE_DIRECTION_EXTERNAL = "external"
 
 
 @dataclass
@@ -43,20 +46,25 @@ class ApplicationDiffButtonHandler:
         if context is None:
             return
 
-        update_request = self._build_update_request(context.payload)
+        update_request = self._build_diff_update_request(
+            payload=context.payload,
+            update_direction=UPDATE_DIRECTION_INTERNAL,
+            event_id=context.event_id,
+        )
 
         if update_request is None:
-            await callback.answer("Nothing to apply", show_alert=True)
+            await callback.answer("Application data is unavailable", show_alert=True)
             self._logger.warning(
-                "Update request is empty for event_id=%s",
+                "Diff update request is empty for event_id=%s direction=%s",
                 context.event_id,
+                UPDATE_DIRECTION_INTERNAL,
             )
 
             return
 
         await callback.answer("Applying...")
 
-        success = await self._push_update(update_request)
+        success = await self._push_diff_update(update_request)
 
         if not success:
             await context.message.answer("⭕ Failed to apply changes, please retry later")
@@ -79,20 +87,25 @@ class ApplicationDiffButtonHandler:
         if context is None:
             return
 
-        update_request = self._build_external_update_request(context.payload)
+        update_request = self._build_diff_update_request(
+            payload=context.payload,
+            update_direction=UPDATE_DIRECTION_EXTERNAL,
+            event_id=context.event_id,
+        )
 
         if update_request is None:
-            await callback.answer("No DB snapshot is available", show_alert=True)
+            await callback.answer("Application data is unavailable", show_alert=True)
             self._logger.warning(
-                "External update request is empty for event_id=%s",
+                "Diff update request is empty for event_id=%s direction=%s",
                 context.event_id,
+                UPDATE_DIRECTION_EXTERNAL,
             )
 
             return
 
         await callback.answer("Updating sheet...")
 
-        success = await self._push_update_external(update_request)
+        success = await self._push_diff_update(update_request)
 
         if not success:
             await context.message.answer("⭕ Failed to sync Google Sheet, please retry later")
@@ -146,107 +159,45 @@ class ApplicationDiffButtonHandler:
 
         return event_id
 
-    def _build_update_request(self, payload: dict[str, Any]) -> dict[str, Any] | None:
-        sheet_id = payload.get("sheet_id")
-        sheet_payload = payload.get("sheet_payload") or {}
+    def _build_diff_update_request(
+        self,
+        *,
+        payload: dict[str, Any],
+        update_direction: str,
+        event_id: str,
+    ) -> dict[str, Any] | None:
+        application_id = payload.get("application_id")
 
-        if sheet_id is None or not sheet_payload:
-            return None
-
-        request: dict[str, Any] = {
-            "sheet_id": sheet_id,
-        }
-
-        self._assign_if_present(request, "application_id", sheet_payload.get("application_id"))
-        self._assign_if_present(request, "row_id", sheet_payload.get("row_id"))
-        self._assign_if_present(request, "company", sheet_payload.get("company"))
-        self._assign_if_present(request, "employment_type", sheet_payload.get("employment_type"))
-        self._assign_if_present(request, "work_mode", sheet_payload.get("work_mode"))
-        self._assign_if_present(request, "title", sheet_payload.get("title"))
-        self._assign_if_present(request, "status", sheet_payload.get("status"))
-        self._assign_if_present(
-            request,
-            "stage",
-            sheet_payload.get("stage"),
-            allow_null=True,
-        )
-        self._assign_if_present(request, "applied_at", sheet_payload.get("applied_at"))
-        self._assign_if_present(request, "responded_at", sheet_payload.get("responded_at"), allow_null=True)
-        self._assign_if_present(request, "next_follow_up_at", sheet_payload.get("next_follow_up_at"), allow_null=True)
-
-        meta = sheet_payload.get("meta")
-        if isinstance(meta, dict):
-            request["meta"] = meta
-
-        salary_applied = sheet_payload.get("salary_applied")
-        salary_proposed = sheet_payload.get("salary_proposed")
-
-        if isinstance(salary_applied, dict):
-            self._assign_if_present(request, "salary_applied_from", salary_applied.get("amount_from"))
-            self._assign_if_present(request, "salary_applied_to", salary_applied.get("amount_to"))
-            self._assign_if_present(request, "salary_currency", salary_applied.get("currency"))
-            self._assign_if_present(request, "salary_period", salary_applied.get("period"))
-
-        if isinstance(salary_proposed, dict):
-            self._assign_if_present(request, "salary_offered_from", salary_proposed.get("amount_from"))
-            self._assign_if_present(request, "salary_offered_to", salary_proposed.get("amount_to"))
-            if "salary_currency" not in request:
-                self._assign_if_present(request, "salary_currency", salary_proposed.get("currency"))
-            if "salary_period" not in request:
-                self._assign_if_present(request, "salary_period", salary_proposed.get("period"))
-
-        return request
-
-    def _build_external_update_request(self, payload: dict[str, Any]) -> dict[str, Any] | None:
-        sheet_id = payload.get("sheet_id")
-        sheet_page = payload.get("sheet_page") or "applications_list"
-        db_snapshot = payload.get("db_snapshot")
-        row_id = (db_snapshot or {}).get("row_id")
-
-        if sheet_id is None or not isinstance(db_snapshot, dict) or row_id is None:
-            return None
-
-        request: dict[str, Any] = {
-            "sheet_id": sheet_id,
-            "sheet_page": sheet_page,
-            "db_snapshot": db_snapshot,
-        }
-
-        return request
-
-    async def _push_update(self, request: dict[str, Any]) -> bool:
-        base_url = self._config.GSA_BASE_URL.rstrip("/")
-        url = f"{base_url}/api/application/update-internal"
-        headers = {**HEADERS, "x-api-version": self._config.API_VERSION}
-
-        try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
-                response = await client.post(url, headers=headers, json=request)
-        except Exception as e:
-            self._logger.error("Failed to call application update endpoint: %s", e)
-
-            return False
-
-        if response.status_code >= 300:
-            self._logger.error(
-                "Application update request failed status=%s body=%s",
-                response.status_code,
-                response.text,
+        if application_id is None:
+            self._logger.warning(
+                "application_id is missing in diff payload for event_id=%s",
+                event_id,
             )
 
-            return False
+            return None
 
-        self._logger.info(
-            "Synchronized application via GSA update endpoint (application_id=%s row_id=%s)",
-            request.get("application_id"),
-            request.get("row_id"),
-        )
+        try:
+            normalized_application_id = int(application_id)
+        except Exception as e:
+            self._logger.error(
+                "application_id is not an integer (event_id=%s, application_id=%s): %s",
+                event_id,
+                application_id,
+                e,
+            )
 
-        return True
+            return None
 
-    async def _push_update_external(self, request: dict[str, Any]) -> bool:
+        request = {
+            "application_id": normalized_application_id,
+            "update_direction": update_direction,
+        }
+
+        return request
+
+    async def _push_diff_update(self, request: dict[str, Any]) -> bool:
         base_url = self._config.GSA_BASE_URL.rstrip("/")
-        url = f"{base_url}/api/application/update-external"
+        url = f"{base_url}{DIFF_UPDATE_ENDPOINT}"
         headers = {**HEADERS, "x-api-version": self._config.API_VERSION}
 
         try:
@@ -254,7 +205,7 @@ class ApplicationDiffButtonHandler:
                 response = await client.post(url, headers=headers, json=request)
         except Exception as e:
             self._logger.error(
-                "Failed to call application update-external endpoint: %s",
+                "Failed to call diff update endpoint: %s",
                 e,
             )
 
@@ -262,7 +213,7 @@ class ApplicationDiffButtonHandler:
 
         if response.status_code >= 300:
             self._logger.error(
-                "Application update-external request failed status=%s body=%s",
+                "Diff update request failed status=%s body=%s",
                 response.status_code,
                 response.text,
             )
@@ -270,24 +221,12 @@ class ApplicationDiffButtonHandler:
             return False
 
         self._logger.info(
-            "Synchronized Google Sheet via update-external endpoint (row_id=%s)",
-            (request.get("db_snapshot") or {}).get("row_id"),
+            "Triggered diff update via GSA endpoint (application_id=%s direction=%s)",
+            request.get("application_id"),
+            request.get("update_direction"),
         )
 
         return True
-
-    def _assign_if_present(
-        self,
-        target: dict[str, Any],
-        key: str,
-        value: Any,
-        *,
-        allow_null: bool = False,
-    ) -> None:
-        if value is None and not allow_null:
-            return
-
-        target[key] = value
 
     async def _load_context(self, callback: CallbackQuery) -> CachedDiffContext | None:
         message = callback.message

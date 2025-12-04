@@ -18,4 +18,7 @@ type applicationService interface {
 		applicationStatusExclude []enums.ApplicationStatus,
 		isReplyEmailReceived bool,
 	) ([]*models.Application, error)
+	SyncFromDTO(ctx context.Context, applicationDTO dto.UpdateApplicationDTO) error
+	FindByID(ctx context.Context, id int64) (*models.Application, error)
+	Update(ctx context.Context, applicationDTO dto.UpdateApplicationDTO) error
 }

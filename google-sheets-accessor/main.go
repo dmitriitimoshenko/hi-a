@@ -90,5 +90,7 @@ func run() error {
 		return httpServer.Run(gctx)
 	})
 
+	logger.Info("GSA is running...")
+
 	return g.Wait()
 }

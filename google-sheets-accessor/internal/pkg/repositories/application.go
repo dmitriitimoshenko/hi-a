@@ -66,12 +66,12 @@ func (r *ApplicationRepository) Save(ctx context.Context, application ...*models
 }
 
 func (r *ApplicationRepository) GetMaxRowID(ctx context.Context) (*int64, error) {
-	var count *int64
-	if err := r.db.WithContext(ctx).Model(&models.Application{}).Count(count).Error; err != nil {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&models.Application{}).Count(&count).Error; err != nil {
 		return nil, err
 	}
 
-	return count, nil
+	return &count, nil
 }
 
 func (r *ApplicationRepository) List(

@@ -187,8 +187,6 @@ services:
     depends_on:
       postgres-google-sheets-accessor:
         condition: service_healthy
-      redis-google-sheets-accessor:
-        condition: service_healthy
       kafka:
         condition: service_healthy
     environment:

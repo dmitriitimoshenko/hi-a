@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -81,10 +80,6 @@ func (s *HTTPServer) apiVersionMiddleware(next http.Handler) http.Handler {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
-
-		s.logger.Info(
-			fmt.Sprintf("Endpoint called: %s", r.URL.RawPath),
-		)
 
 		next.ServeHTTP(w, r)
 	})

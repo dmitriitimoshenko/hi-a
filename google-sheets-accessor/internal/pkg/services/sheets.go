@@ -59,12 +59,18 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 	result := make(map[int64]dto.SheetApplicationDTO, rowTo-rowFrom+1)
 
 	rowCnt := rowFrom
-	for _, row := range resp {
+	for i, row := range resp {
 		if len(row) == 0 {
 			continue
 		}
+
+		// if last row is invalid, skip it -> it might be in work
 		if len(row) < 10 {
-			return nil, fmt.Errorf("incomplete data in Google sheet in range [%s]", sheetRange)
+			if len(resp)-1 != i {
+				return nil, fmt.Errorf("incomplete data in Google sheet in range [%s]", sheetRange)
+			} else {
+				continue
+			}
 		}
 
 		appliedAt, err := tools.ParseSheetDateGivenInDaysSince(row[9], "02/01/2006")

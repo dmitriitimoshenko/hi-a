@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -10,12 +12,18 @@ import (
 )
 
 type HTTPServer struct {
+	logger             *slog.Logger
 	applicationService applicationService
 	sheetsService      sheetsService
 }
 
-func NewHTTPServer(applicationService applicationService, sheetsService sheetsService) *HTTPServer {
+func NewHTTPServer(
+	applicationService applicationService,
+	sheetsService sheetsService,
+	logger *slog.Logger,
+) *HTTPServer {
 	return &HTTPServer{
+		logger:             logger,
 		applicationService: applicationService,
 		sheetsService:      sheetsService,
 	}
@@ -30,7 +38,7 @@ func (s *HTTPServer) Run(ctx context.Context) error {
 		s.sheetsService,
 	)
 
-	secureMux := apiVersionMiddleware(mux)
+	secureMux := s.apiVersionMiddleware(mux)
 
 	server := &http.Server{
 		Addr:    ":8083",
@@ -66,13 +74,17 @@ func (s *HTTPServer) Run(ctx context.Context) error {
 	return nil
 }
 
-func apiVersionMiddleware(next http.Handler) http.Handler {
+func (s *HTTPServer) apiVersionMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		apiKey := r.Header.Get("X-Api-Version")
 		if apiKey != "1" {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
+
+		s.logger.Info(
+			fmt.Sprintf("Endpoint called: %s", r.URL.RawPath),
+		)
 
 		next.ServeHTTP(w, r)
 	})

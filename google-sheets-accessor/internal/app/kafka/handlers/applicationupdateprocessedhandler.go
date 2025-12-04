@@ -9,6 +9,7 @@ import (
 	kafkaclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
 	aup "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka/handlers/messages/applicationupdateprocessed"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services/dto"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/tools"
 )
 
 type ApplicationUpdateProcessedHandler struct {
@@ -37,6 +38,19 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 	mappedApplicationSalaryApplied := applicationUpdateData.MappedApplication.SalaryApplied
 	mappedApplicationSalaryProposed := applicationUpdateData.MappedApplication.SalaryProposed
 
+	meta, err := tools.ByteToMapStringString(mappedApplication.Meta)
+	if err != nil {
+		return fmt.Errorf("failed to ByteToMapStringString: %w", err)
+	}
+
+	embedding, err := tools.ByteToFloat32Slice(mappedApplication.Embedding)
+	if err != nil {
+		return fmt.Errorf("failed to ByteToFloat32Slice: %w", err)
+	}
+	if embedding != nil && len(embedding) == 0 {
+		embedding = nil
+	}
+
 	updateApplicationSalaryAppliedDTO := dto.UpdateApplicationSalaryDTO{
 		ID:         mappedApplicationSalaryApplied.ID,
 		AmountFrom: mappedApplicationSalaryApplied.AmountFrom,
@@ -63,8 +77,8 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 		RespondedAt:    mappedApplication.RespondedAt,
 		NextFollowUpAt: mappedApplication.NextFollowUpAt,
 		Stage:          mappedApplication.Stage,
-		Meta:           mappedApplication.Meta,
-		Embedding:      mappedApplication.Embedding,
+		Meta:           *meta,
+		Embedding:      embedding,
 		SalaryApplied:  &updateApplicationSalaryAppliedDTO,
 		SalaryProposed: &updateApplicationSalaryProposedDTO,
 	}

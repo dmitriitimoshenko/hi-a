@@ -15,6 +15,10 @@ type SalaryDataDTO struct {
 }
 
 func (dto *SalaryDataDTO) ToString() string {
+	if dto == nil {
+		return "-"
+	}
+
 	af := "-"
 	if dto.AmountFrom != nil {
 		af = strconv.FormatFloat(*dto.AmountFrom, 'f', -1, 64)

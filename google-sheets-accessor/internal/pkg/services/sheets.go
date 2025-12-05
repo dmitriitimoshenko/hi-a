@@ -74,6 +74,7 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 	rowCnt := rowFrom
 	for i, row := range resp {
 		if len(row) == 0 {
+			rowCnt++
 			continue
 		}
 

@@ -410,7 +410,7 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 			if err != nil {
 				return fmt.Errorf("failed to find application by rowID [%d]: %w", rowID, err)
 			}
-			if application == nil {
+			if application == nil || application.ID == 0 {
 				return nil
 			}
 			s.logger.Info(

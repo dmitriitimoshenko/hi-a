@@ -180,6 +180,8 @@ async def _fetch_last_processed_row(
         return None
 
     last_processed_row = data.get("last_processed_row")
+    if last_processed_row < 3:
+        last_processed_row = 3
 
     if not isinstance(last_processed_row, int):
         logger.warning(

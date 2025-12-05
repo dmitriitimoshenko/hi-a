@@ -27,7 +27,7 @@ class ApplicationDiffJobConfig:
 
 _CONFIG: ApplicationDiffJobConfig | None = None
 
-ROWS_PER_ITERATION = 25
+ROWS_PER_ITERATION = 50
 ITERATION_DELAY_SECONDS = 10
 MIN_SHEET_ROW = 3
 LAST_PROCESSED_ROW_ENDPOINT = "/api/application/last-processed-row"

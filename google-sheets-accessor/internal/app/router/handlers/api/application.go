@@ -37,7 +37,8 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 	var diffRequest messages.DiffRequest
 	if err := decoder.Decode(&diffRequest); err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on Diff: %w", err).Error(),
+			"failed to decode diffRequest",
+			slog.Any("error", err),
 		)
 		http.Error(w, "invalid request payload", http.StatusBadRequest)
 
@@ -51,7 +52,8 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on Diff: %w", err).Error(),
+			"failed on GetApplicationsDiff call",
+			slog.Any("error", err),
 		)
 		http.Error(w, "failed to get applications diff", http.StatusInternalServerError)
 
@@ -61,7 +63,8 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 	mappedDiff, err := h.mapDiffToResponse(diffs)
 	if err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on Diff: %w", err).Error(),
+			"failed on mapDiffToResponse call",
+			slog.Any("error", err),
 		)
 		http.Error(w, "failed to map diff to response", http.StatusInternalServerError)
 
@@ -80,7 +83,8 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on Diff: %w", err).Error(),
+			"failed endode DiffResponse",
+			slog.Any("error", err),
 		)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 

@@ -741,10 +741,10 @@ func (s *ApplicationService) getApplicationDiff(
 			SheetValue: sheetAppliedSalaryDTO,
 			DBValue:    dbAppliedSalaryDTO,
 			Message: fmt.Sprintf(
-				"Row %d: SalaryApplied differs (Sheet: %+v, DB: %+v)",
+				"Row %d: SalaryApplied differs (Sheet: %s, DB: %s)",
 				dbApplication.RowID,
-				*sheetAppliedSalaryDTO,
-				*dbAppliedSalaryDTO,
+				sheetAppliedSalaryDTO.ToString(),
+				dbAppliedSalaryDTO.ToString(),
 			),
 		})
 	} else if (dbAppliedSalaryDTO == nil && sheetAppliedSalaryDTO != nil) ||
@@ -754,10 +754,10 @@ func (s *ApplicationService) getApplicationDiff(
 			SheetValue: sheetAppliedSalaryDTO,
 			DBValue:    dbAppliedSalaryDTO,
 			Message: fmt.Sprintf(
-				"Row %d: SalaryApplied differs (Sheet: %+v, DB: %+v)",
+				"Row %d: SalaryApplied differs (Sheet: %s, DB: %s)",
 				dbApplication.RowID,
-				*sheetAppliedSalaryDTO,
-				*dbAppliedSalaryDTO,
+				sheetAppliedSalaryDTO.ToString(),
+				dbAppliedSalaryDTO.ToString(),
 			),
 		})
 	}
@@ -771,8 +771,8 @@ func (s *ApplicationService) getApplicationDiff(
 			Message: fmt.Sprintf(
 				"Row %d: SalaryProposed differs (Sheet: %+v, DB: %+v)",
 				dbApplication.RowID,
-				*sheetProposedSalaryDTO,
-				*dbProposedSalaryDTO,
+				sheetProposedSalaryDTO.ToString(),
+				dbProposedSalaryDTO.ToString(),
 			),
 		})
 	} else if (dbProposedSalaryDTO == nil && sheetProposedSalaryDTO != nil) ||
@@ -784,8 +784,8 @@ func (s *ApplicationService) getApplicationDiff(
 			Message: fmt.Sprintf(
 				"Row %d: SalaryProposed differs (Sheet: %+v, DB: %+v)",
 				dbApplication.RowID,
-				*sheetProposedSalaryDTO,
-				*dbProposedSalaryDTO,
+				sheetProposedSalaryDTO.ToString(),
+				dbProposedSalaryDTO.ToString(),
 			),
 		})
 	}

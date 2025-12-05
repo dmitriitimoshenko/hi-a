@@ -90,6 +90,12 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	h.logger.Info(
+		"Successfully run DIFF endpoint",
+		slog.Any("request", diffRequest),
+		slog.Any("response", *resp),
+	)
 }
 
 func (h *ApplicationHandler) mapDiffToResponse(diffs []dto.ApplicationDiffEntry) ([]messages.ApplicationDiffEntry, error) {

@@ -816,6 +816,10 @@ func (s *ApplicationService) Fetch(ctx context.Context) (int64, int64, error) {
 	}
 	*maxRowID++
 
+	if *maxRowID < 3 {
+		*maxRowID = 3
+	}
+
 	sheetApplications, err := s.sheets.GetApplicationsFromRows(ctx, *maxRowID, sheets.LastRow)
 	if err != nil {
 		return 0, 0, fmt.Errorf(

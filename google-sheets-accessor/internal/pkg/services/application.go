@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"maps"
 	"os"
 	"strconv"
 	"sync"
@@ -23,6 +25,7 @@ const KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING = "KAFKA_TOPIC_ADD_APPLICATION_EMBED
 
 type ApplicationService struct {
 	db             *gorm.DB
+	logger         *slog.Logger
 	kafkaPublisher kafkaPublisher
 	sheets         sheetsService
 	repository     applicationRepository
@@ -32,6 +35,7 @@ type ApplicationService struct {
 
 func NewApplicationService(
 	db *gorm.DB,
+	logger *slog.Logger,
 	kafkaPublisher kafkaPublisher,
 	sheets sheetsService,
 	repository applicationRepository,
@@ -39,6 +43,7 @@ func NewApplicationService(
 ) *ApplicationService {
 	return &ApplicationService{
 		db:             db,
+		logger:         logger,
 		kafkaPublisher: kafkaPublisher,
 		sheets:         sheets,
 		repository:     repository,
@@ -380,6 +385,11 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get applications from Google Sheets: %w", err)
 	}
+	s.logger.Info(
+		"[GetApplicationsDiff] sheet application got from remote",
+		slog.Int("len", len(sheetApplications)),
+		slog.Any("keys", maps.Keys(sheetApplications)),
+	)
 
 	const maxWorkers = 5
 
@@ -391,6 +401,11 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 
 	for rowID, sheetApplication := range sheetApplications {
 		g.Go(func() error {
+			s.logger.Info(
+				"[GetApplicationsDiff] goroutine started",
+				slog.Int("row_id", int(rowID)),
+			)
+
 			application, err := s.repository.FindByRowID(gctx, rowID)
 			if err != nil {
 				return fmt.Errorf("failed to find application by rowID [%d]: %w", rowID, err)
@@ -400,6 +415,11 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 			if err != nil {
 				return fmt.Errorf("failed to get application diff for rowID [%d]: %w", rowID, err)
 			}
+			s.logger.Info(
+				"[GetApplicationsDiff] getApplicationDiff run",
+				slog.Int("applicationDiffs_len", len(applicationDiffs)),
+			)
+
 			if len(applicationDiffs) == 0 {
 				return nil
 			}

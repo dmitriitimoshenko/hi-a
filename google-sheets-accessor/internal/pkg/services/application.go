@@ -1114,6 +1114,14 @@ func (s *ApplicationService) CleanUpMeetingsInBatches(ctx context.Context, batch
 		if err != nil {
 			return updatedCount, fmt.Errorf("failed to paginate: %w", err)
 		}
+		if paginated != nil {
+			s.logger.Info(
+				"applications were paginated",
+				slog.Any("applications", *paginated),
+			)
+		} else {
+			s.logger.Info("applications were NOT paginated")
+		}
 
 		updatedInIterationCount, err := s.cleanUpMeetings(ctx, paginated.Content)
 		if err != nil {

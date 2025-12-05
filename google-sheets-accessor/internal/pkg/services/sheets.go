@@ -89,7 +89,7 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 			return nil, fmt.Errorf("incomplete data in Google sheet in range [%s]", sheetRange)
 		}
 
-		appliedAt, err := tools.ParseSheetDateGivenInDaysSince(s.logger, row[9]) // "02/01/2006"
+		appliedAt, err := tools.ParseSheetDateGivenInDaysSince(row[9])
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse appliedAt value [%s] in row [%d] with content [%v]: %w", row[9], rowCnt, row, err)
 		}
@@ -134,7 +134,7 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 		}
 
 		if len(row) > 10 && row[10] != "" {
-			respondedAt, err := tools.ParseSheetDateGivenInDaysSince(s.logger, row[10]) // "02/01/2006"
+			respondedAt, err := tools.ParseSheetDateGivenInDaysSince(row[10])
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse respondedAt value [%s] in row [%d] with content [%v]: %w", row[10], rowCnt, row, err)
 			}
@@ -142,7 +142,7 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 		}
 
 		if len(row) > 11 && row[11] != "" {
-			nextFollowUpAt, err := tools.ParseSheetDateGivenInDaysSince(s.logger, row[11]) // "02/01/2006 15:04:05"
+			nextFollowUpAt, err := tools.ParseSheetDateGivenInDaysSince(row[11])
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse nextFollowUpAt value [%s] in row [%d] with content [%v]: %w", row[11], rowCnt, row, err)
 			}

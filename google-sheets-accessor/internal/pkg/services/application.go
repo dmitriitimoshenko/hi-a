@@ -391,7 +391,7 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 		slog.Any("keys", maps.Keys(sheetApplications)),
 	)
 
-	const maxWorkers = 5
+	const maxWorkers = 15
 
 	var mx sync.Mutex
 	g, gctx := errgroup.WithContext(ctx)

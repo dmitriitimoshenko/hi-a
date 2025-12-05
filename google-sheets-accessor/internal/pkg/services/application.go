@@ -604,7 +604,8 @@ func (s *ApplicationService) getApplicationDiff(
 		})
 	}
 
-	if dbApplication.Stage != nil && sheetApplication.Stage != nil {
+	if dbApplication.Stage != nil && 
+		sheetApplication.Stage != nil && *sheetApplication.Stage != 0 {
 		dbStage, err := strconv.ParseInt(
 			tools.RemoveLetters(*dbApplication.Stage),
 			10,
@@ -613,6 +614,7 @@ func (s *ApplicationService) getApplicationDiff(
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse stage value [%s] in row [%d]: %w", *dbApplication.Stage, dbApplication.RowID, err)
 		}
+
 		if dbStage != *sheetApplication.Stage {
 			diffs = append(diffs, dto.ApplicationDiff{
 				Field:      "stage",

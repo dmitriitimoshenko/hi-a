@@ -740,6 +740,7 @@ func (s *ApplicationService) getApplicationDiff(
 			slog.Any("db", dbAppliedSalaryDTO.ToString()),
 			slog.Any("sh", sheetAppliedSalaryDTO.ToString()),
 			slog.Bool("*dbAppliedSalaryDTO != *sheetAppliedSalaryDTO", *dbAppliedSalaryDTO != *sheetAppliedSalaryDTO),
+			slog.Bool("IsEqual", dbAppliedSalaryDTO.IsEqual(sheetAppliedSalaryDTO)),
 		)
 	}
 

@@ -30,3 +30,37 @@ func (dto *SalaryDataDTO) ToString() string {
 		af, at, dto.Currency, dto.Period,
 	)
 }
+
+func (dto *SalaryDataDTO) IsEqual(newDTO *SalaryDataDTO) bool {
+	if dto == nil && newDTO == nil {
+		return true
+	}
+
+	if (dto != nil && newDTO == nil) || (dto == nil && newDTO != nil) {
+		return false
+	}
+
+	if dto.Currency != newDTO.Currency ||
+		dto.Period != newDTO.Period {
+		return false
+	}
+
+	if (dto.AmountFrom != nil && newDTO.AmountFrom == nil) ||
+		(dto.AmountFrom == nil && newDTO.AmountFrom != nil) ||
+		(dto.AmountTo != nil && newDTO.AmountTo == nil) ||
+		(dto.AmountTo == nil && newDTO.AmountTo != nil) {
+		return false
+	}
+
+	if dto.AmountFrom != nil && newDTO.AmountFrom != nil &&
+		*dto.AmountFrom != *newDTO.AmountFrom {
+		return false
+	}
+
+	if dto.AmountTo != nil && newDTO.AmountTo != nil &&
+		*dto.AmountTo != *newDTO.AmountTo {
+		return false
+	}
+
+	return true
+}

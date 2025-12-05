@@ -22,7 +22,7 @@ func ParseSheetDateGivenInDaysSince(l *slog.Logger, value string) (*time.Time, e
 
 	base := time.Date(1899, 12, 30, 0, 0, 0, 0, time.UTC)
 
-	r := base.Add(time.Duration(days) * day)
+	r := base.Add(time.Duration(days * float64(day)))
 
 	return &r, nil
 }

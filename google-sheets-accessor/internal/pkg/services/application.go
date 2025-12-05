@@ -734,6 +734,13 @@ func (s *ApplicationService) getApplicationDiff(
 		}
 	}
 
+	s.logger.Info(
+		"salary applied check",
+		slog.Any("db", dbAppliedSalaryDTO.ToString()),
+		slog.Any("sh", sheetAppliedSalaryDTO.ToString()),
+		slog.Bool("*dbAppliedSalaryDTO != *sheetAppliedSalaryDTO", *dbAppliedSalaryDTO != *sheetAppliedSalaryDTO),
+	)
+
 	if dbAppliedSalaryDTO != nil && sheetAppliedSalaryDTO != nil &&
 		*dbAppliedSalaryDTO != *sheetAppliedSalaryDTO {
 		diffs = append(diffs, dto.ApplicationDiff{

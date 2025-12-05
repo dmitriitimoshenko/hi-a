@@ -42,8 +42,13 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 		)
 		http.Error(w, "invalid request payload", http.StatusBadRequest)
 
-		return
+			return
 	}
+
+	h.logger.Info(
+		"Diff request received",
+		slog.Any("request", diffRequest),
+	)
 
 	diffs, rowsChecked, err := h.applicationService.GetApplicationsDiff(
 		r.Context(),

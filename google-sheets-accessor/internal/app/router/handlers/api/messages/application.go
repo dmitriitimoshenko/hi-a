@@ -9,7 +9,6 @@ import (
 /// DIFF request
 
 type DiffRequest struct {
-	ID         string    `json:"id"`
 	SheetRange DiffRange `json:"sheet_range"`
 }
 

@@ -361,7 +361,6 @@ def _build_diff_payload(
     end_row: int,
 ) -> dict:
     payload = {
-        "id": config.sheet_id,
         "sheet_range": {
             "start_row": start_row,
             "end_row": end_row,

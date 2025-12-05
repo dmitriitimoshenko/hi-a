@@ -206,12 +206,11 @@ async def _request_application_diff(
             headers=HEADERS_JSON,
             json=payload,
         )
-    except Exception as e:
-        logger.error(
-            "Application diff request to be posted failed for rows %s-%s: %s",
+    except Exception:
+        logger.exception(
+            "Application diff request to be posted failed for rows %s-%s",
             start_row,
             end_row,
-            e,
         )
 
         return

@@ -206,10 +206,21 @@ async def _request_application_diff(
             headers=HEADERS_JSON,
             json=payload,
         )
-        response.raise_for_status()
     except Exception as e:
         logger.error(
-            "Application diff request failed for rows %s-%s: %s",
+            "Application diff request to be posted failed for rows %s-%s: %s",
+            start_row,
+            end_row,
+            e,
+        )
+
+        return
+    
+    try:
+        response.raise_for_status()
+    except Exception as e :
+        logger.error(
+            "Application diff request failed for rows %s-%s because of status code returned: %s",
             start_row,
             end_row,
             e,

@@ -413,6 +413,10 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 			if application == nil {
 				return nil
 			}
+			s.logger.Info(
+				"application check",
+				slog.Any("application", *application),
+			)
 
 			applicationDiffs, err := s.getApplicationDiff(application, &sheetApplication)
 			if err != nil {

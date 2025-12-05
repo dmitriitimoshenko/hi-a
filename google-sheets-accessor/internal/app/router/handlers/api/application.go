@@ -42,7 +42,7 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 		)
 		http.Error(w, "invalid request payload", http.StatusBadRequest)
 
-			return
+		return
 	}
 
 	h.logger.Info(
@@ -96,7 +96,7 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info(
+	h.logger.Debug(
 		"Successfully run DIFF endpoint",
 		slog.Any("request", diffRequest),
 		slog.Any("response", *resp),

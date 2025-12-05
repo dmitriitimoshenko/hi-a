@@ -734,18 +734,8 @@ func (s *ApplicationService) getApplicationDiff(
 		}
 	}
 
-	if dbAppliedSalaryDTO != nil && sheetAppliedSalaryDTO != nil {
-		s.logger.Info(
-			"salary applied check",
-			slog.Any("db", dbAppliedSalaryDTO.ToString()),
-			slog.Any("sh", sheetAppliedSalaryDTO.ToString()),
-			slog.Bool("*dbAppliedSalaryDTO != *sheetAppliedSalaryDTO", *dbAppliedSalaryDTO != *sheetAppliedSalaryDTO),
-			slog.Bool("IsEqual", dbAppliedSalaryDTO.IsEqual(sheetAppliedSalaryDTO)),
-		)
-	}
-
 	if dbAppliedSalaryDTO != nil && sheetAppliedSalaryDTO != nil &&
-		*dbAppliedSalaryDTO != *sheetAppliedSalaryDTO {
+		!dbAppliedSalaryDTO.IsEqual(sheetAppliedSalaryDTO) {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "salary_applied",
 			SheetValue: sheetAppliedSalaryDTO,
@@ -773,7 +763,7 @@ func (s *ApplicationService) getApplicationDiff(
 	}
 
 	if dbProposedSalaryDTO != nil && sheetProposedSalaryDTO != nil &&
-		*dbProposedSalaryDTO != *sheetProposedSalaryDTO {
+		!dbProposedSalaryDTO.IsEqual(sheetProposedSalaryDTO) {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "salary_proposed",
 			SheetValue: sheetProposedSalaryDTO,

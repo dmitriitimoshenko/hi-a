@@ -401,7 +401,7 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 
 	for rowID, sheetApplication := range sheetApplications {
 		g.Go(func() error {
-			s.logger.Info(
+			s.logger.Debug(
 				"[GetApplicationsDiff] goroutine started",
 				slog.Int("row_id", int(rowID)),
 			)
@@ -413,8 +413,8 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 			if application == nil || application.ID == 0 {
 				return nil
 			}
-			s.logger.Info(
-				"application check",
+			s.logger.Debug(
+				"[GetApplicationsDiff] application check",
 				slog.Any("application", *application),
 			)
 
@@ -422,7 +422,7 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 			if err != nil {
 				return fmt.Errorf("failed to get application diff for rowID [%d]: %w", rowID, err)
 			}
-			s.logger.Info(
+			s.logger.Debug(
 				"[GetApplicationsDiff] getApplicationDiff run",
 				slog.Int("applicationDiffs_len", len(applicationDiffs)),
 			)

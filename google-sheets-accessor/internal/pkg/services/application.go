@@ -576,7 +576,11 @@ func (s *ApplicationService) getApplicationDiff(
 	}
 
 	if dbApplication.Stage != nil && sheetApplication.Stage != nil {
-		dbStage, err := strconv.ParseInt(*dbApplication.Stage, 10, 64)
+		dbStage, err := strconv.ParseInt(
+			tools.RemoveLetters(*dbApplication.Stage),
+			10,
+			64,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse stage value [%s] in row [%d]: %w", *dbApplication.Stage, dbApplication.RowID, err)
 		}
@@ -622,12 +626,14 @@ func (s *ApplicationService) getApplicationDiff(
 	sheetMeta := sheetApplication.Meta
 	dbMeta := make(map[string]string)
 
-	dbMetaMarshalled, err := dbApplication.Meta.MarshalJSON()
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal dbApplication.Meta for row [%d]: %w", dbApplication.RowID, err)
-	}
-	if err = json.Unmarshal(dbMetaMarshalled, &dbMeta); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal dbApplication.Meta for row [%d]: %w", dbApplication.RowID, err)
+	if dbApplication.Meta != nil {
+		dbMetaMarshalled, err := dbApplication.Meta.MarshalJSON()
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal dbApplication.Meta for row [%d]: %w", dbApplication.RowID, err)
+		}
+		if err = json.Unmarshal(dbMetaMarshalled, &dbMeta); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal dbApplication.Meta for row [%d]: %w", dbApplication.RowID, err)
+		}
 	}
 
 	if dbMeta["contacts"] != sheetMeta["contacts"] {

@@ -353,7 +353,6 @@ def _build_diff_payload(
     payload = {
         "id": config.sheet_id,
         "sheet_range": {
-            "sheet_page": config.sheet_page,
             "start_row": start_row,
             "end_row": end_row,
         },

@@ -146,7 +146,11 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 		}
 
 		if len(row) > 12 && row[12] != "" {
-			stage, err := strconv.ParseInt(row[12], 10, 64)
+			stage, err := strconv.ParseInt(
+				tools.RemoveLetters(row[12]),
+				10,
+				64,
+			)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse stage value [%s] in row [%d]: %w", row[12], rowCnt, err)
 			}

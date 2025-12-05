@@ -5,18 +5,25 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	kafkaclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
 	aup "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka/handlers/messages/applicationupdateprocessed"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services/dto"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/tools"
 )
 
 type ApplicationUpdateProcessedHandler struct {
+	logger             *slog.Logger
 	applicationService applicationService
 }
 
-func NewApplicationUpdateProcessedHandler(applicationService applicationService) *ApplicationUpdateProcessedHandler {
+func NewApplicationUpdateProcessedHandler(
+	logger *slog.Logger,
+	applicationService applicationService,
+) *ApplicationUpdateProcessedHandler {
 	return &ApplicationUpdateProcessedHandler{
+		logger:             logger,
 		applicationService: applicationService,
 	}
 }
@@ -36,6 +43,16 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 	mappedApplication := applicationUpdateData.MappedApplication
 	mappedApplicationSalaryApplied := applicationUpdateData.MappedApplication.SalaryApplied
 	mappedApplicationSalaryProposed := applicationUpdateData.MappedApplication.SalaryProposed
+
+	meta, err := tools.ByteToMapStringString(mappedApplication.Meta)
+	if err != nil {
+		return fmt.Errorf("failed to ByteToMapStringString: %w", err)
+	}
+
+	h.logger.Info(
+		"ByteToFloat32Slice is going to convert...",
+		slog.Any("b", mappedApplication.Embedding),
+	)
 
 	updateApplicationSalaryAppliedDTO := dto.UpdateApplicationSalaryDTO{
 		ID:         mappedApplicationSalaryApplied.ID,
@@ -63,8 +80,7 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 		RespondedAt:    mappedApplication.RespondedAt,
 		NextFollowUpAt: mappedApplication.NextFollowUpAt,
 		Stage:          mappedApplication.Stage,
-		Meta:           mappedApplication.Meta,
-		Embedding:      mappedApplication.Embedding,
+		Meta:           *meta,
 		SalaryApplied:  &updateApplicationSalaryAppliedDTO,
 		SalaryProposed: &updateApplicationSalaryProposedDTO,
 	}

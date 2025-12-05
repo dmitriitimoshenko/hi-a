@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/sheets"
@@ -382,9 +383,11 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 
 	const maxWorkers = 5
 
+	var mx sync.Mutex
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(maxWorkers)
-	applicationDiffEntriesChan := make(chan dto.ApplicationDiffEntry)
+
+	applicationDiffsSet := make([]dto.ApplicationDiffEntry, 0)
 
 	for rowID, sheetApplication := range sheetApplications {
 		g.Go(func() error {
@@ -397,6 +400,9 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 			if err != nil {
 				return fmt.Errorf("failed to get application diff for rowID [%d]: %w", rowID, err)
 			}
+			if len(applicationDiffs) == 0 {
+				return nil
+			}
 
 			e := dto.ApplicationDiffEntry{
 				Differences: applicationDiffs,
@@ -406,7 +412,9 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 				Errors:      []string{},
 			}
 
-			applicationDiffEntriesChan <- e
+			mx.Lock()
+			applicationDiffsSet = append(applicationDiffsSet, e)
+			mx.Unlock()
 
 			return nil
 		})
@@ -414,12 +422,6 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 
 	if err := g.Wait(); err != nil {
 		return nil, nil, fmt.Errorf("failed to process applications for diff: %w", err)
-	}
-	close(applicationDiffEntriesChan)
-
-	applicationDiffsSet := make([]dto.ApplicationDiffEntry, 0)
-	for applicationDiffs := range applicationDiffEntriesChan {
-		applicationDiffsSet = append(applicationDiffsSet, applicationDiffs)
 	}
 
 	rowsChecked := int64(len(sheetApplications))

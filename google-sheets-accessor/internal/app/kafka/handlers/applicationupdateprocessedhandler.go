@@ -53,13 +53,6 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 		"ByteToFloat32Slice is going to convert...",
 		slog.Any("b", mappedApplication.Embedding),
 	)
-	embedding, err := tools.ByteToFloat32Slice(mappedApplication.Embedding)
-	if err != nil {
-		return fmt.Errorf("failed to ByteToFloat32Slice: %w", err)
-	}
-	if embedding != nil && len(embedding) == 0 {
-		embedding = nil
-	}
 
 	updateApplicationSalaryAppliedDTO := dto.UpdateApplicationSalaryDTO{
 		ID:         mappedApplicationSalaryApplied.ID,
@@ -88,7 +81,6 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 		NextFollowUpAt: mappedApplication.NextFollowUpAt,
 		Stage:          mappedApplication.Stage,
 		Meta:           *meta,
-		Embedding:      embedding,
 		SalaryApplied:  &updateApplicationSalaryAppliedDTO,
 		SalaryProposed: &updateApplicationSalaryProposedDTO,
 	}

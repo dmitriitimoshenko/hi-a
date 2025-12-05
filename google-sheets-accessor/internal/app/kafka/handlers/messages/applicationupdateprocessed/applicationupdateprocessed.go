@@ -63,7 +63,7 @@ type ApplicationPayload struct {
 	NextFollowUpAt *time.Time              `json:"next_follow_up_at,omitempty"`
 	Stage          *int64                  `json:"stage"`
 	Meta           json.RawMessage         `json:"meta,omitempty"`
-	Embedding      json.RawMessage         `json:"embedding,omitempty"`
+	Embedding      []float32               `json:"embedding,omitempty"`
 	SalaryApplied  *Salary                 `json:"salary_applied,omitempty"`
 	SalaryProposed *Salary                 `json:"salary_proposed,omitempty"`
 }

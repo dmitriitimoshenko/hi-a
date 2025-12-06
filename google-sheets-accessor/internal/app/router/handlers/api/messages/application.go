@@ -38,9 +38,9 @@ type ApplicationDiffEntry struct {
 }
 
 type ApplicationDiffChange struct {
-	Field      string `json:"field"`
-	SheetValue string `json:"sheet_value"`
-	DBValue    string `json:"db_value"`
+	Field      string      `json:"field"`
+	SheetValue interface{} `json:"sheet_value"`
+	DBValue    interface{} `json:"db_value"`
 }
 
 // FETCH response

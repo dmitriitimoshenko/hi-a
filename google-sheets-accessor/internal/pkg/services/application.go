@@ -463,7 +463,7 @@ func (s *ApplicationService) getApplicationDiff(
 	if dbApplication == nil && sheetApplication != nil {
 		return []dto.ApplicationDiff{{
 			Field:      "application",
-			SheetValue: sheetApplication.ToString(),
+			SheetValue: *sheetApplication,
 			DBValue:    "-",
 		}}, nil
 	}

@@ -1,7 +1,6 @@
 package dto
 
 import (
-	"fmt"
 	"strconv"
 	"time"
 
@@ -97,64 +96,11 @@ type SheetApplicationDTO struct {
 	SalaryProposed *SheetApplicationSalaryDTO
 }
 
-func (dto *SheetApplicationDTO) ToString() string {
-	if dto == nil {
-		return "no_sheet_application"
-	}
-
-	r := fmt.Sprintf(
-		"company: %s, title: %s, employment_type: %s, work mode: %s, status: %s, applied_at: %s",
-		dto.Company, dto.Title, dto.EmploymentType, dto.WorkMode, dto.Status, dto.AppliedAt.Format("02/01/2006"),
-	)
-
-	if dto.RespondedAt != nil {
-		r = fmt.Sprintf("%s, %s", r, dto.RespondedAt.Format("02/01/2006"))
-	}
-	if dto.NextFollowUpAt != nil {
-		r = fmt.Sprintf("%s, %s", r, dto.NextFollowUpAt.Format("02/01/2006"))
-	}
-	if dto.Stage != nil {
-		r = fmt.Sprintf("%s, %d", r, *dto.Stage)
-	}
-	if len(dto.Meta) > 0 {
-		r = fmt.Sprintf("%s, %s", r, dto.Meta)
-	}
-	if dto.SalaryApplied != nil {
-		r = fmt.Sprintf("%s, %s", r, dto.SalaryApplied.ToString())
-	}
-	if dto.SalaryProposed != nil {
-		r = fmt.Sprintf("%s, %s", r, dto.SalaryProposed.ToString())
-	}
-
-	return r
-}
-
 type SheetApplicationSalaryDTO struct {
 	AmountFrom *float64
 	AmountTo   *float64
 	Currency   string
 	Period     enums.SalaryPeriod
-}
-
-func (dto *SheetApplicationSalaryDTO) ToString() string {
-	if dto == nil {
-		return "-"
-	}
-
-	af := "-"
-	if dto.AmountFrom != nil {
-		af = strconv.FormatFloat(*dto.AmountFrom, 'f', -1, 64)
-	}
-
-	at := "-"
-	if dto.AmountTo != nil {
-		at = strconv.FormatFloat(*dto.AmountTo, 'f', -1, 64)
-	}
-
-	return fmt.Sprintf(
-		"amountFrom: %s, amountTo: %s, currency: %s, period: %s",
-		af, at, dto.Currency, dto.Period,
-	)
 }
 
 type ApplicationDiffEntry struct {
@@ -167,8 +113,8 @@ type ApplicationDiffEntry struct {
 
 type ApplicationDiff struct {
 	Field      string
-	SheetValue string
-	DBValue    string
+	SheetValue interface{}
+	DBValue    interface{}
 }
 
 type PaginationParams struct {

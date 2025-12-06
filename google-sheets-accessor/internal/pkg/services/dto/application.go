@@ -115,7 +115,6 @@ type ApplicationDiff struct {
 	Field      string
 	SheetValue interface{}
 	DBValue    interface{}
-	Message    string
 }
 
 type PaginationParams struct {

@@ -465,7 +465,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "application",
 			SheetValue: sheetApplication,
 			DBValue:    nil,
-			Message:    "Application does not exist in DB",
 		}}, nil
 	}
 
@@ -476,7 +475,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "company",
 			SheetValue: sheetApplication.Company,
 			DBValue:    dbApplication.Company,
-			Message:    fmt.Sprintf("Row %d: Company differs (Sheet: %s, DB: %s)", dbApplication.RowID, sheetApplication.Company, dbApplication.Company),
 		})
 	}
 
@@ -485,7 +483,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "title",
 			SheetValue: sheetApplication.Title,
 			DBValue:    dbApplication.Title,
-			Message:    fmt.Sprintf("Row %d: Title differs (Sheet: %s, DB: %s)", dbApplication.RowID, sheetApplication.Title, dbApplication.Title),
 		})
 	}
 
@@ -494,7 +491,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "employment_type",
 			SheetValue: sheetApplication.EmploymentType,
 			DBValue:    dbApplication.EmploymentType,
-			Message:    fmt.Sprintf("Row %d: EmploymentType differs (Sheet: %s, DB: %s)", dbApplication.RowID, sheetApplication.EmploymentType, dbApplication.EmploymentType),
 		})
 	}
 
@@ -503,7 +499,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "work_mode",
 			SheetValue: sheetApplication.WorkMode,
 			DBValue:    dbApplication.WorkMode,
-			Message:    fmt.Sprintf("Row %d: WorkMode differs (Sheet: %s, DB: %s)", dbApplication.RowID, sheetApplication.WorkMode, dbApplication.WorkMode),
 		})
 	}
 
@@ -512,7 +507,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "status",
 			SheetValue: sheetApplication.Status,
 			DBValue:    dbApplication.Status,
-			Message:    fmt.Sprintf("Row %d: Status differs (Sheet: %s, DB: %s)", dbApplication.RowID, sheetApplication.Status, dbApplication.Status),
 		})
 	}
 
@@ -521,12 +515,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "applied_at",
 			SheetValue: sheetApplication.AppliedAt,
 			DBValue:    dbApplication.AppliedAt.Format("02/01/2006"),
-			Message: fmt.Sprintf(
-				"Row %d: AppliedAt differs (Sheet: %s, DB: %s)",
-				dbApplication.RowID,
-				sheetApplication.AppliedAt.Format("02/01/2006"),
-				dbApplication.AppliedAt.Format("02/01/2006"),
-			),
 		})
 	}
 
@@ -536,12 +524,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "responded_at",
 			SheetValue: sheetApplication.RespondedAt.Format("02/01/2006"),
 			DBValue:    dbApplication.RespondedAt.Format("02/01/2006"),
-			Message: fmt.Sprintf(
-				"Row %d: RespondedAt differs (Sheet: %s, DB: %s)",
-				dbApplication.RowID,
-				sheetApplication.RespondedAt.Format("02/01/2006"),
-				dbApplication.RespondedAt.Format("02/01/2006"),
-			),
 		})
 	} else if (dbApplication.RespondedAt == nil && sheetApplication.RespondedAt != nil) ||
 		(dbApplication.RespondedAt != nil && sheetApplication.RespondedAt == nil) {
@@ -560,12 +542,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "responded_at",
 			SheetValue: sheetValue,
 			DBValue:    dbValue,
-			Message: fmt.Sprintf(
-				"Row %d: RespondedAt differs (Sheet: %s, DB: %s)",
-				dbApplication.RowID,
-				sheetValue,
-				dbValue,
-			),
 		})
 	}
 
@@ -575,12 +551,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "next_follow_up_at",
 			SheetValue: sheetApplication.NextFollowUpAt.Format("02/01/2006 15:04:05"),
 			DBValue:    dbApplication.NextFollowUpAt.Format("02/01/2006 15:04:05"),
-			Message: fmt.Sprintf(
-				"Row %d: NextFollowUpAt differs (Sheet: %s, DB: %s)",
-				dbApplication.RowID,
-				sheetApplication.NextFollowUpAt.Format("02/01/2006 15:04:05"),
-				dbApplication.NextFollowUpAt.Format("02/01/2006 15:04:05"),
-			),
 		})
 	} else if (dbApplication.NextFollowUpAt == nil && sheetApplication.NextFollowUpAt != nil) ||
 		(dbApplication.NextFollowUpAt != nil && sheetApplication.NextFollowUpAt == nil) {
@@ -595,16 +565,10 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "next_follow_up_at",
 			SheetValue: sheetValue,
 			DBValue:    dbValue,
-			Message: fmt.Sprintf(
-				"Row %d: NextFollowUpAt differs (Sheet: %s, DB: %s)",
-				dbApplication.RowID,
-				sheetValue,
-				dbValue,
-			),
 		})
 	}
 
-	if dbApplication.Stage != nil && *dbApplication.Stage != "" && sheetApplication.Stage != nil {
+	if dbApplication.Stage != nil && sheetApplication.Stage != nil {
 		dbStage, err := strconv.ParseInt(
 			tools.RemoveLetters(*dbApplication.Stage),
 			10,
@@ -619,12 +583,6 @@ func (s *ApplicationService) getApplicationDiff(
 				Field:      "stage",
 				SheetValue: *sheetApplication.Stage,
 				DBValue:    dbStage,
-				Message: fmt.Sprintf(
-					"Row %d: Stage differs (Sheet: %d, DB: %d)",
-					dbApplication.RowID,
-					*sheetApplication.Stage,
-					dbStage,
-				),
 			})
 		}
 	} else if (dbApplication.Stage == nil && sheetApplication.Stage != nil) ||
@@ -644,12 +602,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "stage",
 			SheetValue: sheetValue,
 			DBValue:    dbValue,
-			Message: fmt.Sprintf(
-				"Row %d: Stage differs (Sheet: %s, DB: %s)",
-				dbApplication.RowID,
-				sheetValue,
-				dbValue,
-			),
 		})
 	}
 
@@ -671,12 +623,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "meta.contacts",
 			SheetValue: sheetMeta["contacts"],
 			DBValue:    dbMeta["contacts"],
-			Message: fmt.Sprintf(
-				"Row %d: Meta.Contacts differs (Sheet: %s, DB: %s)",
-				dbApplication.RowID,
-				sheetMeta["contacts"],
-				dbMeta["contacts"],
-			),
 		})
 	}
 
@@ -685,12 +631,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "meta.job_description",
 			SheetValue: sheetMeta["job_description"],
 			DBValue:    dbMeta["job_description"],
-			Message: fmt.Sprintf(
-				"Row %d: Meta.JobDescription differs (Sheet: %s, DB: %s)",
-				dbApplication.RowID,
-				sheetMeta["job_description"],
-				dbMeta["job_description"],
-			),
 		})
 	}
 
@@ -699,12 +639,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "meta.notes",
 			SheetValue: sheetMeta["notes"],
 			DBValue:    dbMeta["notes"],
-			Message: fmt.Sprintf(
-				"Row %d: Meta.Notes differs (Sheet: %s, DB: %s)",
-				dbApplication.RowID,
-				sheetMeta["notes"],
-				dbMeta["notes"],
-			),
 		})
 	}
 
@@ -748,12 +682,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "salary_applied",
 			SheetValue: sheetAppliedSalaryDTO,
 			DBValue:    dbAppliedSalaryDTO,
-			Message: fmt.Sprintf(
-				"Row %d: SalaryApplied differs (Sheet: %s, DB: %s)",
-				dbApplication.RowID,
-				sheetAppliedSalaryDTO.ToString(),
-				dbAppliedSalaryDTO.ToString(),
-			),
 		})
 	} else if (dbAppliedSalaryDTO == nil && sheetAppliedSalaryDTO != nil) ||
 		(dbAppliedSalaryDTO != nil && sheetAppliedSalaryDTO == nil) {
@@ -761,12 +689,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "salary_applied",
 			SheetValue: sheetAppliedSalaryDTO,
 			DBValue:    dbAppliedSalaryDTO,
-			Message: fmt.Sprintf(
-				"Row %d: SalaryApplied differs (Sheet: %s, DB: %s)",
-				dbApplication.RowID,
-				sheetAppliedSalaryDTO.ToString(),
-				dbAppliedSalaryDTO.ToString(),
-			),
 		})
 	}
 
@@ -776,12 +698,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "salary_proposed",
 			SheetValue: sheetProposedSalaryDTO,
 			DBValue:    dbProposedSalaryDTO,
-			Message: fmt.Sprintf(
-				"Row %d: SalaryProposed differs (Sheet: %+v, DB: %+v)",
-				dbApplication.RowID,
-				sheetProposedSalaryDTO.ToString(),
-				dbProposedSalaryDTO.ToString(),
-			),
 		})
 	} else if (dbProposedSalaryDTO == nil && sheetProposedSalaryDTO != nil) ||
 		(dbProposedSalaryDTO != nil && sheetProposedSalaryDTO == nil) {
@@ -789,12 +705,6 @@ func (s *ApplicationService) getApplicationDiff(
 			Field:      "salary_proposed",
 			SheetValue: sheetProposedSalaryDTO,
 			DBValue:    dbProposedSalaryDTO,
-			Message: fmt.Sprintf(
-				"Row %d: SalaryProposed differs (Sheet: %+v, DB: %+v)",
-				dbApplication.RowID,
-				sheetProposedSalaryDTO.ToString(),
-				dbProposedSalaryDTO.ToString(),
-			),
 		})
 	}
 

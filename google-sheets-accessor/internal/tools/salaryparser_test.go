@@ -1,6 +1,7 @@
 package tools_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/tools"
@@ -21,6 +22,8 @@ func TestParseSalaryRange(t *testing.T) {
 		{name: "range_mixed_k", input: "60-100k", expected: [2]float64{60000, 100000}, ok: true},
 		{name: "single_small_k", input: "2k", expected: [2]float64{2000, 2000}, ok: true},
 		{name: "invalid_text", input: "abc", ok: false},
+		{name: "overflow_single", input: strings.Repeat("9", 4000), ok: false},
+		{name: "overflow_range_right", input: "1-" + strings.Repeat("9", 4000), ok: false},
 	}
 
 	for _, tt := range tests {

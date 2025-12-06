@@ -493,24 +493,24 @@ func (s *ApplicationService) getApplicationDiff(
 	if dbApplication.EmploymentType != sheetApplication.EmploymentType {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "employment_type",
-			SheetValue: string(sheetApplication.EmploymentType),
-			DBValue:    string(dbApplication.EmploymentType),
+			SheetValue: sheetApplication.EmploymentType,
+			DBValue:    dbApplication.EmploymentType,
 		})
 	}
 
 	if dbApplication.WorkMode != sheetApplication.WorkMode {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "work_mode",
-			SheetValue: string(sheetApplication.WorkMode),
-			DBValue:    string(dbApplication.WorkMode),
+			SheetValue: sheetApplication.WorkMode,
+			DBValue:    dbApplication.WorkMode,
 		})
 	}
 
 	if dbApplication.Status != sheetApplication.Status {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "status",
-			SheetValue: string(sheetApplication.Status),
-			DBValue:    string(dbApplication.Status),
+			SheetValue: sheetApplication.Status,
+			DBValue:    dbApplication.Status,
 		})
 	}
 
@@ -594,7 +594,7 @@ func (s *ApplicationService) getApplicationDiff(
 		var sheetValue, dbValue *string
 		if sheetApplication.Stage != nil {
 			sheetValue = tools.ToPtr(strconv.FormatInt(*sheetApplication.Stage, 10))
-		} 
+		}
 		dbValue = dbApplication.Stage
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "stage",

@@ -28,8 +28,7 @@ down:
 	docker compose down
 
 re-run:
-	docker compose down
-	COMPOSE_BAKE=true docker compose up -d --force-recreate --remove-orphans --build -t 60
+	COMPOSE_BAKE=true docker compose up -d --force-recreate --remove-orphans --build
 	lazydocker
 
 format:

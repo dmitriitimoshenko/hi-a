@@ -591,12 +591,12 @@ func (s *ApplicationService) getApplicationDiff(
 		if sheetApplication.Stage != nil {
 			sheetValue = strconv.FormatInt(*sheetApplication.Stage, 10)
 		} else {
-			sheetValue = "nil"
+			sheetValue = "-"
 		}
 		if dbApplication.Stage != nil {
 			dbValue = *dbApplication.Stage
 		} else {
-			dbValue = "nil"
+			dbValue = "-"
 		}
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "stage",
@@ -744,7 +744,7 @@ func (s *ApplicationService) Fetch(ctx context.Context) (int64, int64, error) {
 		return 0, 0, nil
 	}
 
-	applicationsSavedAmount, salariesSavedAmount, err := s.mapSheetApplicationToModelAndSaveAndSyncFromDB(ctx, sheetApplications)
+	applicationsSavedAmount, salariesSavedAmount, err := s.mapSheetApplicationToModelAndSave(ctx, sheetApplications)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to mapSheetApplicationToModel: %w", err)
 	}
@@ -752,7 +752,7 @@ func (s *ApplicationService) Fetch(ctx context.Context) (int64, int64, error) {
 	return applicationsSavedAmount, salariesSavedAmount, nil
 }
 
-func (s *ApplicationService) mapSheetApplicationToModelAndSaveAndSyncFromDB(
+func (s *ApplicationService) mapSheetApplicationToModelAndSave(
 	ctx context.Context,
 	sheetApplications map[int64]dto.SheetApplicationDTO,
 ) (int64, int64, error) {

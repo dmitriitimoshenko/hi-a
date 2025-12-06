@@ -27,7 +27,7 @@ class ApplicationDiffJobConfig:
 
 _CONFIG: ApplicationDiffJobConfig | None = None
 
-ROWS_PER_ITERATION = 25
+ROWS_PER_ITERATION = 50
 ITERATION_DELAY_SECONDS = 10
 MIN_SHEET_ROW = 3
 LAST_PROCESSED_ROW_ENDPOINT = "/api/application/last-processed-row"
@@ -180,6 +180,8 @@ async def _fetch_last_processed_row(
         return None
 
     last_processed_row = data.get("last_processed_row")
+    if last_processed_row < 3:
+        last_processed_row = 3
 
     if not isinstance(last_processed_row, int):
         logger.warning(
@@ -206,10 +208,20 @@ async def _request_application_diff(
             headers=HEADERS_JSON,
             json=payload,
         )
+    except Exception:
+        logger.exception(
+            "Application diff request to be posted failed for rows %s-%s",
+            start_row,
+            end_row,
+        )
+
+        return
+    
+    try:
         response.raise_for_status()
-    except Exception as e:
+    except Exception as e :
         logger.error(
-            "Application diff request failed for rows %s-%s: %s",
+            "Application diff request failed for rows %s-%s because of status code returned: %s",
             start_row,
             end_row,
             e,
@@ -351,7 +363,6 @@ def _build_diff_payload(
     end_row: int,
 ) -> dict:
     payload = {
-        "id": config.sheet_id,
         "sheet_range": {
             "start_row": start_row,
             "end_row": end_row,

@@ -20,8 +20,8 @@ type ApplicationRepository struct {
 }
 
 func NewApplicationRepository(
-	db *gorm.DB,
 	logger *slog.Logger,
+	db *gorm.DB,
 ) *ApplicationRepository {
 	return &ApplicationRepository{
 		db:     db,

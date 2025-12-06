@@ -9,7 +9,6 @@ import (
 /// DIFF request
 
 type DiffRequest struct {
-	ID         string    `json:"id"`
 	SheetRange DiffRange `json:"sheet_range"`
 }
 
@@ -42,7 +41,6 @@ type ApplicationDiffChange struct {
 	Field      string      `json:"field"`
 	SheetValue interface{} `json:"sheet_value"`
 	DBValue    interface{} `json:"db_value"`
-	Message    string      `json:"message"`
 }
 
 // FETCH response

@@ -111,8 +111,8 @@ func (h *ApplicationHandler) mapDiffToResponse(diffs []dto.ApplicationDiffEntry)
 		for _, difference := range applicationDiffs.Differences {
 			defferencies = append(defferencies, messages.ApplicationDiffChange{
 				Field:      difference.Field,
-				SheetValue: fmt.Sprintf("%v", difference.SheetValue),
-				DBValue:    fmt.Sprintf("%v", difference.DBValue),
+				SheetValue: difference.SheetValue,
+				DBValue:    difference.DBValue,
 			})
 		}
 		responseDiff = append(responseDiff, messages.ApplicationDiffEntry{

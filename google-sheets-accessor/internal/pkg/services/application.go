@@ -460,11 +460,11 @@ func (s *ApplicationService) getApplicationDiff(
 	dbApplication *models.Application,
 	sheetApplication *dto.SheetApplicationDTO,
 ) ([]dto.ApplicationDiff, error) {
-	if dbApplication == nil {
+	if dbApplication == nil && sheetApplication != nil {
 		return []dto.ApplicationDiff{{
 			Field:      "application",
-			SheetValue: sheetApplication,
-			DBValue:    nil,
+			SheetValue: sheetApplication.ToString(),
+			DBValue:    "-",
 		}}, nil
 	}
 
@@ -489,31 +489,31 @@ func (s *ApplicationService) getApplicationDiff(
 	if dbApplication.EmploymentType != sheetApplication.EmploymentType {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "employment_type",
-			SheetValue: sheetApplication.EmploymentType,
-			DBValue:    dbApplication.EmploymentType,
+			SheetValue: string(sheetApplication.EmploymentType),
+			DBValue:    string(dbApplication.EmploymentType),
 		})
 	}
 
 	if dbApplication.WorkMode != sheetApplication.WorkMode {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "work_mode",
-			SheetValue: sheetApplication.WorkMode,
-			DBValue:    dbApplication.WorkMode,
+			SheetValue: string(sheetApplication.WorkMode),
+			DBValue:    string(dbApplication.WorkMode),
 		})
 	}
 
 	if dbApplication.Status != sheetApplication.Status {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "status",
-			SheetValue: sheetApplication.Status,
-			DBValue:    dbApplication.Status,
+			SheetValue: string(sheetApplication.Status),
+			DBValue:    string(dbApplication.Status),
 		})
 	}
 
 	if !tools.AreDatesEqual(dbApplication.AppliedAt, sheetApplication.AppliedAt) {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "applied_at",
-			SheetValue: sheetApplication.AppliedAt,
+			SheetValue: sheetApplication.AppliedAt.Format("02/01/2006"),
 			DBValue:    dbApplication.AppliedAt.Format("02/01/2006"),
 		})
 	}
@@ -581,8 +581,8 @@ func (s *ApplicationService) getApplicationDiff(
 		if dbStage != *sheetApplication.Stage {
 			diffs = append(diffs, dto.ApplicationDiff{
 				Field:      "stage",
-				SheetValue: *sheetApplication.Stage,
-				DBValue:    dbStage,
+				SheetValue: strconv.FormatInt(*sheetApplication.Stage, 10),
+				DBValue:    strconv.FormatInt(dbStage, 10),
 			})
 		}
 	} else if (dbApplication.Stage == nil && sheetApplication.Stage != nil) ||
@@ -680,15 +680,15 @@ func (s *ApplicationService) getApplicationDiff(
 		!dbAppliedSalaryDTO.IsEqual(sheetAppliedSalaryDTO) {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "salary_applied",
-			SheetValue: sheetAppliedSalaryDTO,
-			DBValue:    dbAppliedSalaryDTO,
+			SheetValue: sheetAppliedSalaryDTO.ToString(),
+			DBValue:    dbAppliedSalaryDTO.ToString(),
 		})
 	} else if (dbAppliedSalaryDTO == nil && sheetAppliedSalaryDTO != nil) ||
 		(dbAppliedSalaryDTO != nil && sheetAppliedSalaryDTO == nil) {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "salary_applied",
-			SheetValue: sheetAppliedSalaryDTO,
-			DBValue:    dbAppliedSalaryDTO,
+			SheetValue: sheetAppliedSalaryDTO.ToString(),
+			DBValue:    dbAppliedSalaryDTO.ToString(),
 		})
 	}
 
@@ -696,15 +696,15 @@ func (s *ApplicationService) getApplicationDiff(
 		!dbProposedSalaryDTO.IsEqual(sheetProposedSalaryDTO) {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "salary_proposed",
-			SheetValue: sheetProposedSalaryDTO,
-			DBValue:    dbProposedSalaryDTO,
+			SheetValue: sheetProposedSalaryDTO.ToString(),
+			DBValue:    dbProposedSalaryDTO.ToString(),
 		})
 	} else if (dbProposedSalaryDTO == nil && sheetProposedSalaryDTO != nil) ||
 		(dbProposedSalaryDTO != nil && sheetProposedSalaryDTO == nil) {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "salary_proposed",
-			SheetValue: sheetProposedSalaryDTO,
-			DBValue:    dbProposedSalaryDTO,
+			SheetValue: sheetProposedSalaryDTO.ToString(),
+			DBValue:    dbProposedSalaryDTO.ToString(),
 		})
 	}
 

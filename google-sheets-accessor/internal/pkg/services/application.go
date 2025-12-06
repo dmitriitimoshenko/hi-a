@@ -94,7 +94,7 @@ func (s *ApplicationService) Update(ctx context.Context, applicationDTO dto.Upda
 
 	embeddingVector := pgvector.NewVector(applicationDTO.Embedding)
 
-	stageStrPtr := tools.ToPtr("")
+	var stageStrPtr *string
 	if applicationDTO.Stage != nil {
 		stageStrPtr = tools.ToPtr(strconv.FormatInt(*applicationDTO.Stage, 10))
 	}

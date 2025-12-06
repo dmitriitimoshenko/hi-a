@@ -53,10 +53,8 @@ async def _run_with_client(client: httpx.AsyncClient) -> None:
         cleanup_url, cleanup_payload = cleanup_settings
 
         try:
-            response = await _wrap_call(_post_json, client, cleanup_url, payload=None)
-            response.raise_for_status()
+            await _wrap_call(_post_json, client, cleanup_url, payload=None)
             logger.info(f"{cleanup_url} OK")
-            logger.info(f"{cleanup_url} -> {response.json()}")
         except Exception as e:
             logger.error(f"{cleanup_url} failed: {e}")
 

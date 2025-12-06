@@ -1048,10 +1048,16 @@ func (s *ApplicationService) cleanUpMeetings(ctx context.Context, applications [
 	g, gctx := errgroup.WithContext(ctx)
 
 	for _, application := range applications {
-		if application.Status == enums.ApplicationStatusMeeting &&
-			application.NextFollowUpAt.Truncate(time.Second).Before(time.Now()) {
-			application.Status = enums.ApplicationStatusPending
+		s.logger.Info(
+			"[cleanUpMeetings] running for some application...",
+		)
+		if s.shouldMeetingStatusBeSetPending(application) {
+			s.logger.Info(
+				"[cleanUpMeetings] shouldMeetingStatusBeSetPending condition is TRUE",
+				slog.Int("application_id", int(application.ID)),
+			)
 
+			application.Status = enums.ApplicationStatusPending
 			if err := s.repository.Save(ctx, application); err != nil {
 				return updatedCount, fmt.Errorf("failed to save updated applications")
 			}
@@ -1073,4 +1079,10 @@ func (s *ApplicationService) cleanUpMeetings(ctx context.Context, applications [
 	}
 
 	return updatedCount, nil
+}
+
+func (s *ApplicationService) shouldMeetingStatusBeSetPending(application *models.Application) bool {
+	return application.Status == enums.ApplicationStatusMeeting &&
+		application.NextFollowUpAt != nil &&
+		application.NextFollowUpAt.Truncate(time.Second).Before(time.Now())
 }

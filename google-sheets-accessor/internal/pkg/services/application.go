@@ -604,8 +604,7 @@ func (s *ApplicationService) getApplicationDiff(
 		})
 	}
 
-	if dbApplication.Stage != nil && 
-		sheetApplication.Stage != nil && *sheetApplication.Stage != 0 {
+	if dbApplication.Stage != nil && *dbApplication.Stage != "" && sheetApplication.Stage != nil {
 		dbStage, err := strconv.ParseInt(
 			tools.RemoveLetters(*dbApplication.Stage),
 			10,
@@ -1115,14 +1114,6 @@ func (s *ApplicationService) CleanUpMeetingsInBatches(ctx context.Context, batch
 		)
 		if err != nil {
 			return updatedCount, fmt.Errorf("failed to paginate: %w", err)
-		}
-		if paginated != nil {
-			s.logger.Info(
-				"applications were paginated",
-				slog.Any("applications", *paginated),
-			)
-		} else {
-			s.logger.Info("applications were NOT paginated")
 		}
 
 		updatedInIterationCount, err := s.cleanUpMeetings(ctx, paginated.Content)

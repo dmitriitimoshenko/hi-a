@@ -468,7 +468,7 @@ func (s *ApplicationService) getApplicationDiff(
 		return []dto.ApplicationDiff{{
 			Field:      "application",
 			SheetValue: *sheetApplication,
-			DBValue:    "-",
+			DBValue:    nil,
 		}}, nil
 	}
 
@@ -591,17 +591,11 @@ func (s *ApplicationService) getApplicationDiff(
 		}
 	} else if (dbApplication.Stage == nil && sheetApplication.Stage != nil) ||
 		(dbApplication.Stage != nil && sheetApplication.Stage == nil) {
-		var sheetValue, dbValue string
+		var sheetValue, dbValue *string
 		if sheetApplication.Stage != nil {
-			sheetValue = strconv.FormatInt(*sheetApplication.Stage, 10)
-		} else {
-			sheetValue = "-"
-		}
-		if dbApplication.Stage != nil {
-			dbValue = *dbApplication.Stage
-		} else {
-			dbValue = "-"
-		}
+			sheetValue = tools.ToPtr(strconv.FormatInt(*sheetApplication.Stage, 10))
+		} 
+		dbValue = dbApplication.Stage
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "stage",
 			SheetValue: sheetValue,

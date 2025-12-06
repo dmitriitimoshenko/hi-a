@@ -45,7 +45,7 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info(
+	h.logger.Debug(
 		"Diff request received",
 		slog.Any("request", diffRequest),
 	)

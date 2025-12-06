@@ -49,11 +49,6 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 		return fmt.Errorf("failed to ByteToMapStringString: %w", err)
 	}
 
-	h.logger.Info(
-		"ByteToFloat32Slice is going to convert...",
-		slog.Any("b", mappedApplication.Embedding),
-	)
-
 	updateApplicationSalaryAppliedDTO := dto.UpdateApplicationSalaryDTO{
 		ID:         mappedApplicationSalaryApplied.ID,
 		AmountFrom: mappedApplicationSalaryApplied.AmountFrom,

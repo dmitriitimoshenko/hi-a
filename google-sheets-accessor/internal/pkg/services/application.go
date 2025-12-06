@@ -385,7 +385,7 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get applications from Google Sheets: %w", err)
 	}
-	s.logger.Info(
+	s.logger.Debug(
 		"[GetApplicationsDiff] sheet application got from remote",
 		slog.Int("len", len(sheetApplications)),
 		slog.Any("keys", maps.Keys(sheetApplications)),
@@ -452,6 +452,10 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 	}
 
 	rowsChecked := int64(len(sheetApplications))
+
+	if len(applicationDiffsSet) == 0 {
+		return nil, &rowsChecked, nil
+	}
 
 	return applicationDiffsSet, &rowsChecked, nil
 }
@@ -727,9 +731,7 @@ func (s *ApplicationService) Fetch(ctx context.Context) (int64, int64, error) {
 	}
 	*maxRowID++
 
-	if *maxRowID < 3 {
-		*maxRowID = 3
-	}
+	s.resetMaxRowIDToAllowedMinimumIfBelow(maxRowID)
 
 	sheetApplications, err := s.sheets.GetApplicationsFromRows(ctx, *maxRowID, sheets.LastRow)
 	if err != nil {
@@ -750,6 +752,12 @@ func (s *ApplicationService) Fetch(ctx context.Context) (int64, int64, error) {
 	}
 
 	return applicationsSavedAmount, salariesSavedAmount, nil
+}
+
+func (s *ApplicationService) resetMaxRowIDToAllowedMinimumIfBelow(maxRowID *int64) {
+	if *maxRowID < 3 {
+		*maxRowID = 3
+	}
 }
 
 func (s *ApplicationService) mapSheetApplicationToModelAndSave(
@@ -1048,15 +1056,7 @@ func (s *ApplicationService) cleanUpMeetings(ctx context.Context, applications [
 	g, gctx := errgroup.WithContext(ctx)
 
 	for _, application := range applications {
-		s.logger.Info(
-			"[cleanUpMeetings] running for some application...",
-		)
 		if s.shouldMeetingStatusBeSetPending(application) {
-			s.logger.Info(
-				"[cleanUpMeetings] shouldMeetingStatusBeSetPending condition is TRUE",
-				slog.Int("application_id", int(application.ID)),
-			)
-
 			application.Status = enums.ApplicationStatusPending
 			if err := s.repository.Save(ctx, application); err != nil {
 				return updatedCount, fmt.Errorf("failed to save updated applications")

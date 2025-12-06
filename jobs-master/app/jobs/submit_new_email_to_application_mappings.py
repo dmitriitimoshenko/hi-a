@@ -55,10 +55,10 @@ async def _run_with_client(client: httpx.AsyncClient) -> None:
         try:
             response = await _wrap_call(_post_json, client, cleanup_url, payload=None)
             response.raise_for_status()
-            logger.info(f"{url} OK")
-            logger.info(f"{url} -> {response.json()}")
+            logger.info(f"{cleanup_url} OK")
+            logger.info(f"{cleanup_url} -> {response.json()}")
         except Exception as e:
-            logger.error(f"{url} failed: {e}")
+            logger.error(f"{cleanup_url} failed: {e}")
 
 
     await _wrap_call(_post_json, client, "http://mail-processor:8081/api/mails/interesting/submit", payload={})

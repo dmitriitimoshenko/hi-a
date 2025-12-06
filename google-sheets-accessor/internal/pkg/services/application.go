@@ -385,7 +385,7 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get applications from Google Sheets: %w", err)
 	}
-	s.logger.Info(
+	s.logger.Debug(
 		"[GetApplicationsDiff] sheet application got from remote",
 		slog.Int("len", len(sheetApplications)),
 		slog.Any("keys", maps.Keys(sheetApplications)),
@@ -453,6 +453,10 @@ func (s *ApplicationService) GetApplicationsDiff(ctx context.Context, startRow i
 
 	rowsChecked := int64(len(sheetApplications))
 
+	if len(applicationDiffsSet) == 0 {
+		return nil, &rowsChecked, nil
+	}
+
 	return applicationDiffsSet, &rowsChecked, nil
 }
 
@@ -464,7 +468,7 @@ func (s *ApplicationService) getApplicationDiff(
 		return []dto.ApplicationDiff{{
 			Field:      "application",
 			SheetValue: *sheetApplication,
-			DBValue:    "-",
+			DBValue:    nil,
 		}}, nil
 	}
 
@@ -489,24 +493,24 @@ func (s *ApplicationService) getApplicationDiff(
 	if dbApplication.EmploymentType != sheetApplication.EmploymentType {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "employment_type",
-			SheetValue: string(sheetApplication.EmploymentType),
-			DBValue:    string(dbApplication.EmploymentType),
+			SheetValue: sheetApplication.EmploymentType,
+			DBValue:    dbApplication.EmploymentType,
 		})
 	}
 
 	if dbApplication.WorkMode != sheetApplication.WorkMode {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "work_mode",
-			SheetValue: string(sheetApplication.WorkMode),
-			DBValue:    string(dbApplication.WorkMode),
+			SheetValue: sheetApplication.WorkMode,
+			DBValue:    dbApplication.WorkMode,
 		})
 	}
 
 	if dbApplication.Status != sheetApplication.Status {
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "status",
-			SheetValue: string(sheetApplication.Status),
-			DBValue:    string(dbApplication.Status),
+			SheetValue: sheetApplication.Status,
+			DBValue:    dbApplication.Status,
 		})
 	}
 
@@ -587,17 +591,11 @@ func (s *ApplicationService) getApplicationDiff(
 		}
 	} else if (dbApplication.Stage == nil && sheetApplication.Stage != nil) ||
 		(dbApplication.Stage != nil && sheetApplication.Stage == nil) {
-		var sheetValue, dbValue string
+		var sheetValue, dbValue *string
 		if sheetApplication.Stage != nil {
-			sheetValue = strconv.FormatInt(*sheetApplication.Stage, 10)
-		} else {
-			sheetValue = "-"
+			sheetValue = tools.ToPtr(strconv.FormatInt(*sheetApplication.Stage, 10))
 		}
-		if dbApplication.Stage != nil {
-			dbValue = *dbApplication.Stage
-		} else {
-			dbValue = "-"
-		}
+		dbValue = dbApplication.Stage
 		diffs = append(diffs, dto.ApplicationDiff{
 			Field:      "stage",
 			SheetValue: sheetValue,
@@ -727,9 +725,7 @@ func (s *ApplicationService) Fetch(ctx context.Context) (int64, int64, error) {
 	}
 	*maxRowID++
 
-	if *maxRowID < 3 {
-		*maxRowID = 3
-	}
+	s.resetMaxRowIDToAllowedMinimumIfBelow(maxRowID)
 
 	sheetApplications, err := s.sheets.GetApplicationsFromRows(ctx, *maxRowID, sheets.LastRow)
 	if err != nil {
@@ -750,6 +746,12 @@ func (s *ApplicationService) Fetch(ctx context.Context) (int64, int64, error) {
 	}
 
 	return applicationsSavedAmount, salariesSavedAmount, nil
+}
+
+func (s *ApplicationService) resetMaxRowIDToAllowedMinimumIfBelow(maxRowID *int64) {
+	if *maxRowID < 3 {
+		*maxRowID = 3
+	}
 }
 
 func (s *ApplicationService) mapSheetApplicationToModelAndSave(
@@ -1048,15 +1050,7 @@ func (s *ApplicationService) cleanUpMeetings(ctx context.Context, applications [
 	g, gctx := errgroup.WithContext(ctx)
 
 	for _, application := range applications {
-		s.logger.Info(
-			"[cleanUpMeetings] running for some application...",
-		)
 		if s.shouldMeetingStatusBeSetPending(application) {
-			s.logger.Info(
-				"[cleanUpMeetings] shouldMeetingStatusBeSetPending condition is TRUE",
-				slog.Int("application_id", int(application.ID)),
-			)
-
 			application.Status = enums.ApplicationStatusPending
 			if err := s.repository.Save(ctx, application); err != nil {
 				return updatedCount, fmt.Errorf("failed to save updated applications")

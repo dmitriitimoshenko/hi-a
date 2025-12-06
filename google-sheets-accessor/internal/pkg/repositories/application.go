@@ -15,8 +15,8 @@ import (
 )
 
 type ApplicationRepository struct {
-	db     *gorm.DB
 	logger *slog.Logger
+	db     *gorm.DB
 }
 
 func NewApplicationRepository(
@@ -24,8 +24,8 @@ func NewApplicationRepository(
 	db *gorm.DB,
 ) *ApplicationRepository {
 	return &ApplicationRepository{
-		db:     db,
 		logger: logger,
+		db:     db,
 	}
 }
 

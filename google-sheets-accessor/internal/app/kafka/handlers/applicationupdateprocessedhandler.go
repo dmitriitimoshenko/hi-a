@@ -49,14 +49,15 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 		return fmt.Errorf("failed to ByteToMapStringString: %w", err)
 	}
 
-	updateApplicationSalaryAppliedDTO := dto.UpdateApplicationSalaryDTO{
+	var updateApplicationSalaryAppliedDTO, updateApplicationSalaryProposedDTO *dto.UpdateApplicationSalaryDTO
+	updateApplicationSalaryAppliedDTO = &dto.UpdateApplicationSalaryDTO{
 		ID:         mappedApplicationSalaryApplied.ID,
 		AmountFrom: mappedApplicationSalaryApplied.AmountFrom,
 		AmountTo:   mappedApplicationSalaryApplied.AmountTo,
 		Currency:   mappedApplicationSalaryApplied.Currency,
 		Period:     mappedApplicationSalaryApplied.Period,
 	}
-	updateApplicationSalaryProposedDTO := dto.UpdateApplicationSalaryDTO{
+	updateApplicationSalaryProposedDTO = &dto.UpdateApplicationSalaryDTO{
 		ID:         mappedApplicationSalaryProposed.ID,
 		AmountFrom: mappedApplicationSalaryProposed.AmountFrom,
 		AmountTo:   mappedApplicationSalaryProposed.AmountTo,
@@ -76,8 +77,8 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 		NextFollowUpAt: mappedApplication.NextFollowUpAt,
 		Stage:          mappedApplication.Stage,
 		Meta:           *meta,
-		SalaryApplied:  &updateApplicationSalaryAppliedDTO,
-		SalaryProposed: &updateApplicationSalaryProposedDTO,
+		SalaryApplied:  updateApplicationSalaryAppliedDTO,
+		SalaryProposed: updateApplicationSalaryProposedDTO,
 	}
 
 	if err := h.applicationService.UpdateAndSync(ctx, updateApplicationDTO); err != nil {

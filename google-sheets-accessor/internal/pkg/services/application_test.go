@@ -2,8 +2,6 @@ package services_test
 
 import (
 	"context"
-	"database/sql"
-	"database/sql/driver"
 	"errors"
 	"io"
 	"log/slog"
@@ -20,118 +18,16 @@ import (
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services/dto"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services/mocks"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/tools"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/tools/testhelper/mockdb"
 	"github.com/pgvector/pgvector-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 func newTestLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
-}
-
-type noopConnector struct{}
-
-func (noopConnector) Connect(context.Context) (driver.Conn, error) {
-	return &noopConn{}, nil
-}
-
-func (noopConnector) Driver() driver.Driver {
-	return noopDriver{}
-}
-
-type noopDriver struct{}
-
-func (noopDriver) Open(string) (driver.Conn, error) {
-	return &noopConn{}, nil
-}
-
-type noopConn struct{}
-
-func (c *noopConn) Prepare(string) (driver.Stmt, error) {
-	return noopStmt{}, nil
-}
-
-func (c *noopConn) Close() error { return nil }
-func (c *noopConn) Begin() (driver.Tx, error) {
-	return &noopTx{}, nil
-}
-
-func (c *noopConn) BeginTx(context.Context, driver.TxOptions) (driver.Tx, error) {
-	return &noopTx{}, nil
-}
-
-func (c *noopConn) ExecContext(context.Context, string, []driver.NamedValue) (driver.Result, error) {
-	return noopResult{}, nil
-}
-
-func (c *noopConn) QueryContext(context.Context, string, []driver.NamedValue) (driver.Rows, error) {
-	return &noopRows{}, nil
-}
-
-type noopStmt struct{}
-
-func (noopStmt) Close() error { return nil }
-func (noopStmt) NumInput() int {
-	return -1
-}
-func (noopStmt) Exec([]driver.Value) (driver.Result, error) {
-	return noopResult{}, nil
-}
-func (noopStmt) Query([]driver.Value) (driver.Rows, error) {
-	return &noopRows{}, nil
-}
-
-type noopTx struct{}
-
-func (noopTx) Commit() error   { return nil }
-func (noopTx) Rollback() error { return nil }
-
-type noopResult struct{}
-
-func (noopResult) LastInsertId() (int64, error) { return 0, nil }
-func (noopResult) RowsAffected() (int64, error) { return 0, nil }
-
-type noopRows struct{}
-
-func (noopRows) Columns() []string { return []string{} }
-func (noopRows) Close() error      { return nil }
-func (noopRows) Next([]driver.Value) error {
-	return io.EOF
-}
-
-func newTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-
-	sqlDB := sql.OpenDB(noopConnector{})
-	db, err := gorm.Open(
-		postgres.New(postgres.Config{
-			Conn: sqlDB,
-		}),
-		&gorm.Config{
-			DisableAutomaticPing:   true,
-			SkipDefaultTransaction: true,
-		},
-	)
-	require.NoError(t, err)
-
-	return db.Session(&gorm.Session{DryRun: true})
-}
-
-func newUnmigratedDB(t *testing.T) *gorm.DB {
-	t.Helper()
-
-	db := newTestDB(t)
-	db.Callback().Create().Before("gorm:create").Register("force_error", func(tx *gorm.DB) {
-		tx.AddError(errors.New("forced error"))
-	})
-	db.Callback().Update().Before("gorm:update").Register("force_error", func(tx *gorm.DB) {
-		tx.AddError(errors.New("forced error"))
-	})
-
-	return db
 }
 
 func newApplicationService(
@@ -343,7 +239,7 @@ func TestApplicationServiceUpdate(t *testing.T) {
 			setupRepo: func(repo *mocks.ApplicationRepositoryMock) {
 				repo.On("FindByID", mock.Anything, int64(1)).Return(sampleApplication(now), nil).Once()
 			},
-			db:          newUnmigratedDB(t),
+			db:          mockdb.NewUnmigratedDB(t),
 			expectError: true,
 		},
 		{
@@ -354,7 +250,7 @@ func TestApplicationServiceUpdate(t *testing.T) {
 			setupRepo: func(repo *mocks.ApplicationRepositoryMock) {
 				repo.On("FindByID", mock.Anything, int64(1)).Return(sampleApplication(now), nil).Once()
 			},
-			db: newTestDB(t),
+			db: mockdb.NewTestDB(t),
 		},
 	}
 
@@ -365,7 +261,7 @@ func TestApplicationServiceUpdate(t *testing.T) {
 
 			db := tt.db
 			if db == nil {
-				db = newTestDB(t)
+				db = mockdb.NewTestDB(t)
 			}
 
 			repo := &mocks.ApplicationRepositoryMock{}
@@ -414,7 +310,7 @@ func TestApplicationServiceUpdateAndSync(t *testing.T) {
 				sheetsSvc.On("GetApplicationFromRow", mock.Anything, int64(3)).
 					Return(nil, errors.New("sheet err")).Once()
 			},
-			db:          newTestDB(t),
+			db:          mockdb.NewTestDB(t),
 			expectError: true,
 		},
 		{
@@ -452,7 +348,7 @@ func TestApplicationServiceUpdateAndSync(t *testing.T) {
 				sheetsSvc.On("SetSalaryApplied", mock.Anything, int64(3), mock.Anything).Return(nil)
 				sheetsSvc.On("SetSalaryProposed", mock.Anything, int64(3), mock.Anything).Return(nil)
 			},
-			db: newTestDB(t),
+			db: mockdb.NewTestDB(t),
 		},
 	}
 
@@ -463,7 +359,7 @@ func TestApplicationServiceUpdateAndSync(t *testing.T) {
 
 			db := tt.db
 			if db == nil {
-				db = newTestDB(t)
+				db = mockdb.NewTestDB(t)
 			}
 
 			updateDTO := sampleUpdateDTO(now)
@@ -597,7 +493,7 @@ func TestApplicationServiceSyncFromDTO(t *testing.T) {
 			sheetsSvc := &mocks.SheetsServiceMock{}
 			tt.setupSheets(sheetsSvc)
 
-			service := newApplicationService(newTestDB(t), &mocks.ApplicationRepositoryMock{}, sheetsSvc, nil, nil)
+			service := newApplicationService(mockdb.NewTestDB(t), &mocks.ApplicationRepositoryMock{}, sheetsSvc, nil, nil)
 
 			err := service.SyncFromDTO(context.Background(), updateDTO)
 
@@ -767,7 +663,7 @@ func TestApplicationServiceExecSyncFromDBBranches(t *testing.T) {
 			}
 			registerExecDefaults(svcMock, tt.updateDTO)
 
-			service := newApplicationService(newTestDB(t), &mocks.ApplicationRepositoryMock{}, svcMock, nil, nil)
+			service := newApplicationService(mockdb.NewTestDB(t), &mocks.ApplicationRepositoryMock{}, svcMock, nil, nil)
 
 			err := service.SyncFromDTO(context.Background(), tt.updateDTO)
 
@@ -831,7 +727,7 @@ func TestApplicationServiceSyncFromDTOSafetyLock(t *testing.T) {
 	sheetsSvc.On("SetSalaryApplied", mock.Anything, updateDTO.RowID, mock.Anything).Return(nil).Twice()
 	sheetsSvc.On("SetSalaryProposed", mock.Anything, updateDTO.RowID, mock.Anything).Return(nil).Twice()
 
-	service := newApplicationService(newTestDB(t), &mocks.ApplicationRepositoryMock{}, sheetsSvc, nil, nil)
+	service := newApplicationService(mockdb.NewTestDB(t), &mocks.ApplicationRepositoryMock{}, sheetsSvc, nil, nil)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -1001,7 +897,7 @@ func TestApplicationServiceGetApplicationDiff(t *testing.T) {
 			sheetsSvc.On("GetApplicationsFromRows", mock.Anything, tt.rowID, tt.rowID).
 				Return(map[int64]dto.SheetApplicationDTO{tt.rowID: baseSheet}, nil).Once()
 
-			service := newApplicationService(newTestDB(t), repo, sheetsSvc, nil, nil)
+			service := newApplicationService(mockdb.NewTestDB(t), repo, sheetsSvc, nil, nil)
 
 			diffs, _, err := service.GetApplicationsDiff(context.Background(), tt.rowID, tt.rowID)
 
@@ -1136,7 +1032,7 @@ func TestApplicationServiceGetApplicationsDiff(t *testing.T) {
 				tt.setupMocks(repo, sheetsSvc)
 			}
 
-			service := newApplicationService(newTestDB(t), repo, sheetsSvc, nil, nil)
+			service := newApplicationService(mockdb.NewTestDB(t), repo, sheetsSvc, nil, nil)
 
 			diffs, rowsChecked, err := service.GetApplicationsDiff(context.Background(), tt.start, tt.end)
 
@@ -1242,7 +1138,7 @@ func TestApplicationServiceFetch(t *testing.T) {
 						},
 					}, nil).Once()
 			},
-			db:        newUnmigratedDB(t),
+			db:        mockdb.NewUnmigratedDB(t),
 			expectErr: true,
 		},
 		{
@@ -1269,7 +1165,7 @@ func TestApplicationServiceFetch(t *testing.T) {
 				kafka.On("Publish", mock.Anything, "topic", mock.Anything, mock.Anything).
 					Return(errors.New("publish err")).Once()
 			},
-			db:        newTestDB(t),
+			db:        mockdb.NewTestDB(t),
 			expectErr: true,
 		},
 		{
@@ -1307,7 +1203,7 @@ func TestApplicationServiceFetch(t *testing.T) {
 				kafka.On("Publish", mock.Anything, "topic", mock.Anything, mock.Anything).
 					Return(nil).Once()
 			},
-			db: newTestDB(t),
+			db: mockdb.NewTestDB(t),
 		},
 	}
 
@@ -1333,7 +1229,7 @@ func TestApplicationServiceFetch(t *testing.T) {
 
 			db := tt.db
 			if db == nil {
-				db = newTestDB(t)
+				db = mockdb.NewTestDB(t)
 			}
 
 			service := newApplicationService(db, repo, sheetsSvc, kafka, nil)
@@ -1416,7 +1312,7 @@ func TestApplicationServiceSyncFromSheet(t *testing.T) {
 					AppliedAt:      now,
 				}, nil).Once()
 			},
-			db:        newTestDB(t),
+			db:        mockdb.NewTestDB(t),
 			expectErr: true,
 		},
 		{
@@ -1472,7 +1368,7 @@ func TestApplicationServiceSyncFromSheet(t *testing.T) {
 					},
 				}, nil).Once()
 			},
-			db: newTestDB(t),
+			db: mockdb.NewTestDB(t),
 		},
 	}
 
@@ -1489,7 +1385,7 @@ func TestApplicationServiceSyncFromSheet(t *testing.T) {
 
 			db := tt.db
 			if db == nil {
-				db = newTestDB(t)
+				db = mockdb.NewTestDB(t)
 			}
 
 			service := newApplicationService(db, repo, sheetsSvc, nil, nil)
@@ -1628,7 +1524,7 @@ func TestApplicationServiceCleanUpMeetingsInBatches(t *testing.T) {
 				tt.setupSheets(sheetsSvc)
 			}
 
-			service := newApplicationService(newTestDB(t), repo, sheetsSvc, nil, nil)
+			service := newApplicationService(mockdb.NewTestDB(t), repo, sheetsSvc, nil, nil)
 
 			updated, err := service.CleanUpMeetingsInBatches(context.Background(), 2)
 

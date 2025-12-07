@@ -137,10 +137,16 @@ func (r *ApplicationRepository) Paginate(ctx context.Context, pp dto.PaginationP
 
 	if err := r.db.WithContext(ctx).
 		Model(&models.Application{}).
+		Count(&appliationsCount).
+		Error; err != nil {
+		return nil, err
+	}
+
+	if err := r.db.WithContext(ctx).
+		Model(&models.Application{}).
 		Offset(int(pp.PageSize * (pp.Page - 1))).
 		Limit(int(pp.PageSize)).
 		Find(&appliations).
-		Count(&appliationsCount).
 		Error; err != nil {
 		return nil, err
 	}

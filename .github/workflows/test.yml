@@ -9,7 +9,7 @@ on:
 
 jobs:
   test-go-services:
-    name: Test ${{ matrix.service.name }}
+    name: ${{ matrix.service.name }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

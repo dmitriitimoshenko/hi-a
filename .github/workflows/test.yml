@@ -17,6 +17,8 @@ jobs:
         service:
           - name: Google Sheets Accessor
             dir: google-sheets-accessor
+          - name: Telegram Bot
+            dir: telegram-bot
     steps:
       - name: Checkout
         uses: actions/checkout@v4.2.2

@@ -13,6 +13,7 @@ require (
 	github.com/pgvector/pgvector-go v0.3.0
 	golang.org/x/sync v0.18.0
 	gorm.io/datatypes v1.2.7
+	gorm.io/driver/sqlite v1.4.3
 	gorm.io/gorm v1.30.0
 )
 
@@ -26,6 +27,7 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

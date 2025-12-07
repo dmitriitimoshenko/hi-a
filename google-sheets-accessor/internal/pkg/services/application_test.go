@@ -332,7 +332,6 @@ func TestApplicationServiceUpdateAndSync(t *testing.T) {
 						Stage:          nil,
 						Meta:           map[string]string{"contacts": "old", "job_description": "old", "notes": "old"},
 					}, nil).Once()
-				// respond to execSyncFromDB calls with no-ops
 				sheetsSvc.On("SetCompany", mock.Anything, int64(3), "NewCo").Return(nil)
 				sheetsSvc.On("SetTitle", mock.Anything, int64(3), "Lead").Return(nil)
 				sheetsSvc.On("SetEmploymentType", mock.Anything, int64(3), enums.EmploymentTypeFullTime).Return(nil)

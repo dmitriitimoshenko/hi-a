@@ -1,4 +1,4 @@
-package services
+package services_test
 
 import (
 	"context"
@@ -6,79 +6,120 @@ import (
 	"testing"
 
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/models"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services/mocks"
 	"github.com/magiconair/properties/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-func TestNewSalaryService(t *testing.T) {
-	repo := &mocks.SalaryRepositoryMock{}
+func TestSalaryServiceFindByID(t *testing.T) {
+	salary := &models.Salary{ID: 10, Currency: "USD"}
+	repositoryErr := errors.New("find failed")
+	resultWithError := errors.New("find returned object with error")
 
-	service := NewSalaryService(repo)
+	tests := []struct {
+		name           string
+		id             int64
+		returnedSalary *models.Salary
+		returnedErr    error
+		expectedSalary *models.Salary
+		expectedErr    error
+	}{
+		{
+			name:           "success",
+			id:             10,
+			returnedSalary: salary,
+			expectedSalary: salary,
+		},
+		{
+			name:        "repository error",
+			id:          20,
+			returnedErr: repositoryErr,
+			expectedErr: repositoryErr,
+		},
+		{
+			name: "nil result no error",
+			id:   30,
+		},
+		{
+			name:           "result with error",
+			id:             40,
+			returnedSalary: &models.Salary{ID: 40},
+			returnedErr:    resultWithError,
+			expectedErr:    resultWithError,
+		},
+	}
 
-	assert.Equal(t, service.repository, repo)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo := &mocks.SalaryRepositoryMock{}
+			repo.On("FindByID", mock.Anything, tt.id).Return(tt.returnedSalary, tt.returnedErr).Once()
+
+			service := services.NewSalaryService(repo)
+
+			result, err := service.FindByID(context.Background(), tt.id)
+
+			assert.Equal(t, tt.expectedErr, err)
+			assert.Equal(t, tt.expectedSalary, result)
+			repo.AssertExpectations(t)
+		})
+	}
 }
 
-func TestSalaryServiceFindByIDSuccess(t *testing.T) {
-	expectedSalary := &models.Salary{ID: 10, Currency: "USD"}
-	repo := &mocks.SalaryRepositoryMock{}
-	repo.On("FindByID", mock.Anything, int64(10)).Return(expectedSalary, nil).Once()
+func TestSalaryServiceSave(t *testing.T) {
+	t.Parallel()
 
-	service := NewSalaryService(repo)
+	tests := []struct {
+		name      string
+		salaries  []*models.Salary
+		setupRepo func(repo *mocks.SalaryRepositoryMock)
+		expected  error
+	}{
+		{
+			name: "success",
+			salaries: []*models.Salary{
+				{ID: 1},
+				{ID: 2},
+			},
+			setupRepo: func(repo *mocks.SalaryRepositoryMock) {
+				repo.On("Save", mock.Anything, mock.MatchedBy(func(v interface{}) bool {
+					salaries, ok := v.([]*models.Salary)
+					if !ok {
+						return false
+					}
 
-	result, err := service.FindByID(context.Background(), 10)
+					return len(salaries) == 2 && salaries[0].ID == 1 && salaries[1].ID == 2
+				})).Return(nil).Once()
+			},
+		},
+		{
+			name: "error",
+			salaries: []*models.Salary{
+				{ID: 3},
+			},
+			setupRepo: func(repo *mocks.SalaryRepositoryMock) {
+				repo.On("Save", mock.Anything, mock.Anything).Return(errors.New("save failed")).Once()
+			},
+			expected: errors.New("save failed"),
+		},
+	}
 
-	assert.Equal(t, err, nil)
-	assert.Equal(t, expectedSalary, result)
-	repo.AssertExpectations(t)
-}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-func TestSalaryServiceFindByIDError(t *testing.T) {
-	expectedErr := errors.New("find failed")
-	repo := &mocks.SalaryRepositoryMock{}
-	repo.On("FindByID", mock.Anything, int64(20)).Return((*models.Salary)(nil), expectedErr).Once()
+			repo := &mocks.SalaryRepositoryMock{}
+			tt.setupRepo(repo)
 
-	service := NewSalaryService(repo)
+			service := services.NewSalaryService(repo)
 
-	result, err := service.FindByID(context.Background(), 20)
+			err := service.Save(context.Background(), tt.salaries...)
 
-	assert.Equal(t, err, expectedErr)
-	assert.Equal(t, result, (*models.Salary)(nil))
-	repo.AssertExpectations(t)
-}
-
-func TestSalaryServiceSaveSuccess(t *testing.T) {
-	repo := &mocks.SalaryRepositoryMock{}
-	s1 := &models.Salary{ID: 1}
-	s2 := &models.Salary{ID: 2}
-
-	repo.On("Save", mock.Anything, mock.MatchedBy(func(v interface{}) bool {
-		salaries, ok := v.([]*models.Salary)
-		if !ok {
-			return false
-		}
-
-		return len(salaries) == 2 && salaries[0] == s1 && salaries[1] == s2
-	})).Return(nil).Once()
-
-	service := NewSalaryService(repo)
-
-	err := service.Save(context.Background(), s1, s2)
-
-	assert.Equal(t, err, nil)
-	repo.AssertExpectations(t)
-}
-
-func TestSalaryServiceSaveError(t *testing.T) {
-	expectedErr := errors.New("save failed")
-	repo := &mocks.SalaryRepositoryMock{}
-
-	repo.On("Save", mock.Anything, mock.Anything).Return(expectedErr).Once()
-
-	service := NewSalaryService(repo)
-
-	err := service.Save(context.Background(), &models.Salary{ID: 3})
-
-	assert.Equal(t, err, expectedErr)
-	repo.AssertExpectations(t)
+			assert.Equal(t, tt.expected, err)
+			repo.AssertExpectations(t)
+		})
+	}
 }

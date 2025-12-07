@@ -7,7 +7,7 @@ temp.json
 AGENTS_ADDITION.md
 
 **/__pycache__/
-**/.cache
+**/.*cache
 **/cover.out
 **/secrets
 **/pyvenv.cfg

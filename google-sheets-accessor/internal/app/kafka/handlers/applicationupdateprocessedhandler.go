@@ -86,6 +86,13 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 	}
 
 	if err := h.applicationService.UpdateAndSync(ctx, updateApplicationDTO); err != nil {
+		h.logger.Error(
+			"failed to apply application update",
+			slog.String("kafka_key", key),
+			slog.Any("application_update_data", applicationUpdateData),
+			slog.String("err", err.Error()),
+		)
+
 		return fmt.Errorf("failed to apply application update with kafka key [%s]", key)
 	}
 

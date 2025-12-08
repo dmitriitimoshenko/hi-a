@@ -30,7 +30,6 @@ type ApplicationService struct {
 	sheets         sheetsService
 	repository     applicationRepository
 	salaryService  salaryService
-	safetyPerRow   map[int64]bool
 }
 
 func NewApplicationService(
@@ -48,7 +47,6 @@ func NewApplicationService(
 		sheets:         sheets,
 		repository:     repository,
 		salaryService:  salaryService,
-		safetyPerRow:   make(map[int64]bool),
 	}
 }
 
@@ -186,14 +184,6 @@ func (s *ApplicationService) execSyncFromDB(
 	applicationDTO dto.UpdateApplicationDTO,
 	applicationFromSheetDTO *dto.SheetApplicationDTO,
 ) error {
-	// grant safety for every row in case execSyncFromDB is called concurrently
-	for s.safetyPerRow[applicationDTO.RowID] {
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	s.safetyPerRow[applicationDTO.RowID] = true
-	defer delete(s.safetyPerRow, applicationDTO.RowID)
-
 	rowID := applicationDTO.RowID
 
 	group, groupCtx := errgroup.WithContext(ctx)

@@ -41,8 +41,8 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 	}
 
 	mappedApplication := applicationUpdateData.MappedApplication
-	mappedApplicationSalaryApplied := applicationUpdateData.MappedApplication.SalaryApplied
-	mappedApplicationSalaryProposed := applicationUpdateData.MappedApplication.SalaryProposed
+	mappedApplicationSalaryApplied := mappedApplication.SalaryApplied
+	mappedApplicationSalaryProposed := mappedApplication.SalaryProposed
 
 	meta, err := tools.ByteToMapStringString(mappedApplication.Meta)
 	if err != nil {
@@ -50,19 +50,23 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 	}
 
 	var updateApplicationSalaryAppliedDTO, updateApplicationSalaryProposedDTO *dto.UpdateApplicationSalaryDTO
-	updateApplicationSalaryAppliedDTO = &dto.UpdateApplicationSalaryDTO{
-		ID:         mappedApplicationSalaryApplied.ID,
-		AmountFrom: mappedApplicationSalaryApplied.AmountFrom,
-		AmountTo:   mappedApplicationSalaryApplied.AmountTo,
-		Currency:   mappedApplicationSalaryApplied.Currency,
-		Period:     mappedApplicationSalaryApplied.Period,
+	if mappedApplicationSalaryApplied != nil {
+		updateApplicationSalaryAppliedDTO = &dto.UpdateApplicationSalaryDTO{
+			ID:         mappedApplicationSalaryApplied.ID,
+			AmountFrom: mappedApplicationSalaryApplied.AmountFrom,
+			AmountTo:   mappedApplicationSalaryApplied.AmountTo,
+			Currency:   mappedApplicationSalaryApplied.Currency,
+			Period:     mappedApplicationSalaryApplied.Period,
+		}
 	}
-	updateApplicationSalaryProposedDTO = &dto.UpdateApplicationSalaryDTO{
-		ID:         mappedApplicationSalaryProposed.ID,
-		AmountFrom: mappedApplicationSalaryProposed.AmountFrom,
-		AmountTo:   mappedApplicationSalaryProposed.AmountTo,
-		Currency:   mappedApplicationSalaryProposed.Currency,
-		Period:     mappedApplicationSalaryProposed.Period,
+	if mappedApplicationSalaryProposed != nil {
+		updateApplicationSalaryProposedDTO = &dto.UpdateApplicationSalaryDTO{
+			ID:         mappedApplicationSalaryProposed.ID,
+			AmountFrom: mappedApplicationSalaryProposed.AmountFrom,
+			AmountTo:   mappedApplicationSalaryProposed.AmountTo,
+			Currency:   mappedApplicationSalaryProposed.Currency,
+			Period:     mappedApplicationSalaryProposed.Period,
+		}
 	}
 	updateApplicationDTO := dto.UpdateApplicationDTO{
 		ID:             mappedApplication.ID,

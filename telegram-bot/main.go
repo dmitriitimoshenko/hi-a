@@ -11,6 +11,9 @@ import (
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/kafka"
 	kafkaclient "github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/kafka"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/kafka/handlers"
+	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/redis"
+	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/tgbt"
+	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/services"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -38,8 +41,25 @@ func run() error {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
+	redisCfg := redis.LoadConfig()
+	redisClient, err := redis.New(ctx, redisCfg)
+	if err != nil {
+		return err
+	}
+	defer redisClient.Close()
+
+	botConfig, err := tgbt.LoadConfig()
+	if err != nil {
+		return err
+	}
+
+	tgbtService, err := services.NewTelegramBotService(*botConfig)
+	if err != nil {
+		return err
+	}
+
 	notificationHandler := handlers.NewNotificationHandler(logger)
-	notificationSyncHandler := handlers.NewNotificationSyncHandler(logger)
+	notificationSyncHandler := handlers.NewNotificationSyncHandler(logger, redisClient, tgbtService)
 
 	kafkaServer := app.NewKafkaServer(
 		kafkaClient,

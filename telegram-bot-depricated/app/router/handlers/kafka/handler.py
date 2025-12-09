@@ -63,8 +63,6 @@ class KafkaNotificationHandler:
 
             return
 
-        # logic below possible can be removed
-
         email = value.get("email") or {}
         mapped_application = value.get("mapped_application") or {}
 

@@ -2,7 +2,10 @@ module github.com/dmitriitimoshenko/hi-a/telegram-bot
 
 go 1.25.0
 
-require github.com/redis/go-redis/v9 v9.17.2
+require (
+	github.com/go-telegram/bot v1.17.0
+	github.com/redis/go-redis/v9 v9.17.2
+)
 
 require (
 	github.com/klauspost/compress v1.15.9 // indirect

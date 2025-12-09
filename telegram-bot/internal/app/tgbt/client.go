@@ -8,6 +8,8 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
+const maxCharsPerMessage = 4000
+
 type Client struct {
 	cfg Config
 	bot *tgbot.Bot

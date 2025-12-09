@@ -1,7 +1,9 @@
 package tgbt
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -13,9 +15,11 @@ import (
 )
 
 const (
-	errorMessage        = "⭕ INTERNAL ERROR OCCURED ⭕"
-	confirmPopUpMessage = "☑️ Confirming..."
-	confirmMessage      = "✅ Confirmed"
+	errorMessage          = "⭕ INTERNAL ERROR OCCURED ⭕"
+	confirmPopUpMessage   = "☑️ Confirming..."
+	confirmMessage        = "✅ Confirmed"
+	detailsMissingMessage = "ℹ️ Details for this event are not available anymore"
+	detailsCommingMessage = "☑️ Details will be sent to you shortly"
 
 	KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED = "KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED"
 	applicationUpdateUnprocessedConfirmKey     = "cnfm_button_pressed"
@@ -56,6 +60,10 @@ func (h *TelegramBotHandler) Handle(ctx context.Context, b *tgbot.Bot, update *m
 		switch {
 		case strings.HasPrefix(data, "applied:cnfm:"):
 			h.handleAppliedConfirmation(ctx, b, update)
+		case strings.HasPrefix(data, "applied:dtls:"):
+			h.handleAppliedDetails(ctx, b, update)
+		default:
+			h.logger.Error("unknown callback query data", slog.String("data", data))
 		}
 	}
 }
@@ -86,10 +94,22 @@ func (h *TelegramBotHandler) handleAppliedConfirmation(ctx context.Context, b *t
 		h.logger.Error("[handleAppliedConfirmation] failed to get from redis", "err", err)
 		return
 	}
-	if !ok || val == "" {
-		h.notifyInternalError(ctx, b, update)
-		h.logger.Error("[handleAppliedConfirmation] failed to get from redis: not ok", "err", err)
-		return
+	if !ok {
+		ok, err = b.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
+			CallbackQueryID: update.CallbackQuery.ID,
+			Text:            detailsMissingMessage,
+			ShowAlert:       false,
+		})
+		if err != nil {
+			h.logger.Error("[handleAppliedConfirmation] failed to answer callback query", "err", err)
+			h.notifyInternalError(ctx, b, update)
+			return
+		}
+		if !ok {
+			h.logger.Error("[handleAppliedConfirmation] failed to answer callback query: not ok")
+			h.notifyInternalError(ctx, b, update)
+			return
+		}
 	}
 
 	ok, err = b.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
@@ -151,6 +171,85 @@ func (h *TelegramBotHandler) handleAppliedConfirmation(ctx context.Context, b *t
 	}
 }
 
+func (h *TelegramBotHandler) handleAppliedDetails(ctx context.Context, b *tgbot.Bot, update *models.Update) {
+	data := update.CallbackQuery.Data
+
+	dataParts := strings.Split(data, ":")
+
+	emailID := dataParts[len(dataParts)-1]
+	if emailID == "" && update.CallbackQuery != nil {
+		h.notifyInternalError(ctx, b, update)
+		h.logger.Error("[handleAppliedDetails] emailID is empty")
+		return
+	}
+
+	userID := update.CallbackQuery.From.ID
+
+	cacheKey := fmt.Sprintf("%d:%s", userID, emailID)
+	val, ok, err := h.redisClient.Get(ctx, cacheKey)
+	if err != nil {
+		h.notifyInternalError(ctx, b, update)
+		h.logger.Error("[handleAppliedDetails] failed to get from redis", "err", err)
+		return
+	}
+	if !ok {
+		ok, err = b.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
+			CallbackQueryID: update.CallbackQuery.ID,
+			Text:            detailsMissingMessage,
+			ShowAlert:       false,
+		})
+		if err != nil {
+			h.logger.Error("[handleAppliedConfirmation] failed to answer callback query", "err", err)
+			h.notifyInternalError(ctx, b, update)
+			return
+		}
+		if !ok {
+			h.logger.Error("[handleAppliedConfirmation] failed to answer callback query: not ok")
+			h.notifyInternalError(ctx, b, update)
+			return
+		}
+	}
+
+	ok, err = b.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
+		CallbackQueryID: update.CallbackQuery.ID,
+		Text:            detailsCommingMessage,
+		ShowAlert:       false,
+	})
+	if err != nil {
+		h.logger.Error("[handleAppliedConfirmation] failed to answer callback query", "err", err)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+	if !ok {
+		h.logger.Error("[handleAppliedConfirmation] failed to answer callback query: not ok")
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
+	raw := []byte(val)
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, raw, "", "  "); err != nil {
+		h.logger.Error("[handleAppliedConfirmation] failed to prettify json of details", "err", err)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+	pretty := buf.String()
+
+	messageChunks := h.splitIntoChunks(pretty, maxCharsPerMessage)
+	for _, chunk := range messageChunks {
+		_, err := b.SendMessage(ctx, &tgbot.SendMessageParams{
+			ChatID:    update.CallbackQuery.Message.Message.Chat.ID,
+			Text:      fmt.Sprintf("<pre>%s</pre>", chunk),
+			ParseMode: models.ParseModeHTML,
+		})
+		if err != nil {
+			h.logger.Error("[handleAppliedDetails] failed to send details message in Telegram", "err", err)
+			h.notifyInternalError(ctx, b, update)
+			return
+		}
+	}
+}
+
 func (h *TelegramBotHandler) notifyInternalError(ctx context.Context, b *tgbot.Bot, update *models.Update) {
 	_, err := b.SendMessage(ctx, &tgbot.SendMessageParams{
 		ChatID: update.CallbackQuery.Message.Message.Chat.ID,
@@ -200,4 +299,18 @@ func (h *TelegramBotHandler) appendLineToMessage(
 	}
 
 	return nil
+}
+
+func (h *TelegramBotHandler) splitIntoChunks(s string, chunkSize int) []string {
+	var chunks []string
+	runes := []rune(s)
+	for i := 0; i < len(runes); i += chunkSize {
+		end := i + chunkSize
+		if end > len(runes) {
+			end = len(runes)
+		}
+		chunks = append(chunks, string(runes[i:end]))
+	}
+
+	return chunks
 }

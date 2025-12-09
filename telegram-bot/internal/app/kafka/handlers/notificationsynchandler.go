@@ -13,7 +13,7 @@ import (
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/services/dto"
 )
 
-const applicationDiffCacheTTL = 7 * 24 * time.Hour
+const applicationDiffCacheTTL = 31 * 24 * time.Hour
 
 type NotificationSyncHandler struct {
 	logger      *slog.Logger

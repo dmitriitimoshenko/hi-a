@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"time"
 
 	kafkaclient "github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/kafka"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/kafka/handlers/messages"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/services/dto"
 )
+
+const newEmailMappedCacheTTL = 31 * 24 * time.Hour
 
 type NotificationHandler struct {
 	logger      *slog.Logger
@@ -55,7 +58,7 @@ func (h *NotificationHandler) Handle(ctx context.Context, message kafkaclient.Me
 	)
 
 	cacheKey := string(message.Key)
-	ok, err := h.redisClient.Set(ctx, cacheKey, string(message.Value), applicationDiffCacheTTL)
+	ok, err := h.redisClient.Set(ctx, cacheKey, string(message.Value), newEmailMappedCacheTTL)
 	if err != nil {
 		h.logger.Error("failed to set cache for application diff", "err", err)
 		return err

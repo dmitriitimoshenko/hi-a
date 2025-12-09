@@ -122,12 +122,6 @@ async def handle_meeting_cncl_dtls(callback: CallbackQuery) -> None:
 async def handle_meeting_cncl_skp(callback: CallbackQuery) -> None:
     await button_meeting_cncl_handler.skp(callback)
 
-
-@router.callback_query(F.data.startswith("application_diff:cnfm:"))
-async def handle_application_diff_cnfm(callback: CallbackQuery) -> None:
-    await button_application_diff_handler.apply_sheet(callback)
-
-
 @router.callback_query(F.data.startswith("application_diff:aplsh:"))
 async def handle_application_diff_apply_sheet(callback: CallbackQuery) -> None:
     await button_application_diff_handler.apply_sheet(callback)

@@ -121,7 +121,6 @@ type ListSalaryData struct {
 // UPDATE INTERNAL request
 
 type DiffUpdateRequest struct {
-	ApplicationID    int64                     `json:"application_id"`
 	ApplicationRowID int64                     `json:"application_row_id"`
 	UpdateDirection  enums.DiffUpdateDirection `json:"update_direction"`
 }

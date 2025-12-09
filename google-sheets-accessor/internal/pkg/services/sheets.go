@@ -86,6 +86,11 @@ func (s *SheetsService) GetApplicationsFromRows(ctx context.Context, rowFrom, ro
 			if len(resp)-1 == i {
 				break
 			}
+			s.logger.Error(
+				"incomplete data in Google sheet",
+				slog.Any("range", sheetRange),
+				slog.Any("row", rowCnt),
+			)
 			return nil, fmt.Errorf("incomplete data in Google sheet in range [%s]", sheetRange)
 		}
 

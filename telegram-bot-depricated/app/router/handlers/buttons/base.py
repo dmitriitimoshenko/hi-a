@@ -182,8 +182,6 @@ class BaseButtonHandler:
 
         await self._cleanup_buttons_on_skip(
             message=message,
-            prefix=prefix,
-            email_id=email_id,
             redis_key=redis_key,
         )
 
@@ -248,8 +246,6 @@ class BaseButtonHandler:
 
         await self._cleanup_buttons_on_skip(
             message=message,
-            prefix=prefix,
-            email_id=email_id,
             redis_key=redis_key,
         )
 
@@ -558,8 +554,6 @@ class BaseButtonHandler:
         self,
         *,
         message: Message,
-        prefix: str,
-        email_id: str,
         redis_key: str | None,
     ) -> None:
         if redis_key is not None:

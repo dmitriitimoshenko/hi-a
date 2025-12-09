@@ -50,11 +50,16 @@ func run() error {
 	}
 	defer redisClient.Close()
 
+	telegramBotHandler := tgbt.NewTelegramBotHandler(logger, redisClient, kafkaClient)
+
 	botConfig, err := tgbt.LoadConfig()
 	if err != nil {
 		return err
 	}
-	b, err := tgbot.New(botConfig.BotToken)
+	b, err := tgbot.New(
+		botConfig.BotToken,
+		tgbot.WithDefaultHandler(telegramBotHandler.Handle),
+	)
 	if err != nil {
 		return err
 	}

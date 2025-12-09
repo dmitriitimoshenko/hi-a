@@ -13,14 +13,14 @@ type Config struct {
 }
 
 func LoadConfig() (*Config, error) {
-	chatIDStr := os.Getenv("TG_ID")
-	if chatIDStr == "" {
-		return nil, errors.New("LoadBotConfig: TG_ID isn't set")
-	}
-
 	botToken := os.Getenv("BOT_TOKEN")
 	if botToken == "" {
 		return nil, errors.New("LoadBotConfig: BOT_TOKEN isn't set")
+	}
+
+	chatIDStr := os.Getenv("TG_ID")
+	if chatIDStr == "" {
+		return nil, errors.New("LoadBotConfig: TG_ID isn't set")
 	}
 
 	chatID, err := strconv.ParseInt(chatIDStr, 10, 64)

@@ -7,25 +7,17 @@ import (
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/tgbt"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/enums"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/services/dto"
-	tgbot "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 )
 
 type TelegramBotService struct {
-	botConfig tgbt.Config
-	bot       *tgbot.Bot
+	botClient *tgbt.Client
 }
 
-func NewTelegramBotService(botConfig tgbt.Config) (*TelegramBotService, error) {
-	botClient, err := tgbot.New(botConfig.BotToken, tgbot.WithSkipGetMe())
-	if err != nil {
-		return nil, fmt.Errorf("init telegram bot client: %w", err)
-	}
-
+func NewTelegramBotService(botClient *tgbt.Client) *TelegramBotService {
 	return &TelegramBotService{
-		botConfig: botConfig,
-		bot:       botClient,
-	}, nil
+		botClient: botClient,
+	}
 }
 
 func (s *TelegramBotService) BuildApplicationDiffMessage(diffMessageContent dto.DiffMessageContent) string {
@@ -88,17 +80,7 @@ func (s *TelegramBotService) BuildApplicationDiffKeyboard(eventID string) *model
 }
 
 func (s *TelegramBotService) SendMessage(ctx context.Context, message string, keyboard *models.InlineKeyboardMarkup) error {
-	params := &tgbot.SendMessageParams{
-		ChatID:    s.botConfig.ChatID,
-		Text:      message,
-		ParseMode: models.ParseModeHTML,
-	}
-
-	if keyboard != nil {
-		params.ReplyMarkup = keyboard
-	}
-
-	if _, err := s.bot.SendMessage(ctx, params); err != nil {
+	if err := s.botClient.SendMessage(ctx, message, keyboard); err != nil {
 		return fmt.Errorf("failed to send telegram message: %w", err)
 	}
 

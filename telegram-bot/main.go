@@ -15,6 +15,8 @@ import (
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/tgbt"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/services"
 	"golang.org/x/sync/errgroup"
+
+	tgbot "github.com/go-telegram/bot"
 )
 
 func main() {
@@ -52,11 +54,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
-
-	tgbtService, err := services.NewTelegramBotService(*botConfig)
+	b, err := tgbot.New(botConfig.BotToken)
 	if err != nil {
 		return err
 	}
+	botClient := tgbt.NewClient(*botConfig, b)
+
+	tgbtService := services.NewTelegramBotService(botClient)
 
 	notificationHandler := handlers.NewNotificationHandler(logger)
 	notificationSyncHandler := handlers.NewNotificationSyncHandler(logger, redisClient, tgbtService)

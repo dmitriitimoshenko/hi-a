@@ -320,7 +320,7 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	h.logger.Info("diffRequest dump", slog.Any("diffRequest", diffRequest))
+	h.logger.Debug("diffRequest dump", slog.Any("diffRequest", diffRequest))
 
 	switch diffRequest.UpdateDirection {
 	case enums.DiffUpdateDirectionExternal:

@@ -923,6 +923,7 @@ func (s *ApplicationService) SyncFromDB(ctx context.Context, id int64) error {
 	if dbApplication == nil {
 		return fmt.Errorf("no application with id [%d] found in the db", id)
 	}
+	
 	applicationDTO := dto.UpdateApplicationDTO{}
 	if err = applicationDTO.MapModel(dbApplication); err != nil {
 		return fmt.Errorf("failed to map: %w", err)

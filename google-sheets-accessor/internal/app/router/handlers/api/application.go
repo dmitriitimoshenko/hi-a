@@ -310,7 +310,8 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var diffRequest messages.DiffUpdateRequest
 	if err := decoder.Decode(&diffRequest); err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on Update: %w", err).Error(),
+			"failure on Update",
+			slog.String("err", err.Error()),
 		)
 		http.Error(w, "invalid request payload", http.StatusBadRequest)
 
@@ -319,11 +320,14 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	h.logger.Info("diffRequest dump", slog.Any("diffRequest", diffRequest))
+
 	switch diffRequest.UpdateDirection {
 	case enums.DiffUpdateDirectionExternal:
 		if err := h.applicationService.SyncFromDB(ctx, diffRequest.ApplicationID); err != nil {
 			h.logger.Error(
-				fmt.Errorf("failure on Update: %w", err).Error(),
+				"failure on Update",
+				slog.String("err", err.Error()),
 			)
 			http.Error(w, "failed to sync from db", http.StatusInternalServerError)
 
@@ -332,15 +336,17 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	case enums.DiffUpdateDirectionInternal:
 		if err := h.applicationService.SyncFromSheet(ctx, diffRequest.ApplicationRowID); err != nil {
 			h.logger.Error(
-				fmt.Errorf("failure on Update: %w", err).Error(),
+				"failure on Update",
+				slog.String("err", err.Error()),
 			)
-			http.Error(w, "failed to sync from db", http.StatusInternalServerError)
+			http.Error(w, "failed to sync from sheet", http.StatusInternalServerError)
 
 			return
 		}
 	default:
 		h.logger.Error(
-			fmt.Sprintf("failed to parse update direction: diffRequest.UpdateDirection (valid: %v)", diffRequest.UpdateDirection.IsValid()),
+			"failed to parse update direction",
+			slog.Bool("diffRequest.UpdateDirection validity", diffRequest.UpdateDirection.IsValid()),
 		)
 		http.Error(
 			w,
@@ -355,7 +361,8 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte("Successfully updated applications")); err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on Update: %w", err).Error(),
+			"failure on Update",
+			slog.String("err", err.Error()),
 		)
 		http.Error(w, "failed to write response", http.StatusInternalServerError)
 

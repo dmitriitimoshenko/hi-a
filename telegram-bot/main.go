@@ -62,7 +62,7 @@ func run() error {
 
 	tgbtService := services.NewTelegramBotService(botClient)
 
-	notificationHandler := handlers.NewNotificationHandler(logger)
+	notificationHandler := handlers.NewNotificationHandler(logger, redisClient, tgbtService)
 	notificationSyncHandler := handlers.NewNotificationSyncHandler(logger, redisClient, tgbtService)
 
 	kafkaServer := app.NewKafkaServer(

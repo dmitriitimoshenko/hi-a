@@ -324,7 +324,7 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	switch diffRequest.UpdateDirection {
 	case enums.DiffUpdateDirectionExternal:
-		if err := h.applicationService.SyncFromDB(ctx, diffRequest.ApplicationID); err != nil {
+		if err := h.applicationService.SyncFromDB(ctx, diffRequest.ApplicationRowID); err != nil {
 			h.logger.Error(
 				"failure on Update",
 				slog.String("err", err.Error()),

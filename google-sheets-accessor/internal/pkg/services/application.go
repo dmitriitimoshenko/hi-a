@@ -915,15 +915,15 @@ func (s *ApplicationService) FindByID(ctx context.Context, id int64) (*models.Ap
 	return application, nil
 }
 
-func (s *ApplicationService) SyncFromDB(ctx context.Context, id int64) error {
-	dbApplication, err := s.repository.FindByID(ctx, id)
+func (s *ApplicationService) SyncFromDB(ctx context.Context, rowID int64) error {
+	dbApplication, err := s.repository.FindByRowID(ctx, rowID)
 	if err != nil {
 		return err
 	}
 	if dbApplication == nil {
-		return fmt.Errorf("no application with id [%d] found in the db", id)
+		return fmt.Errorf("no application with rowID [%d] found in the db", rowID)
 	}
-	
+
 	applicationDTO := dto.UpdateApplicationDTO{}
 	if err = applicationDTO.MapModel(dbApplication); err != nil {
 		return fmt.Errorf("failed to map: %w", err)

@@ -166,15 +166,8 @@ class ApplicationDiffButtonHandler:
         update_direction: str,
         event_id: str,
     ) -> dict[str, Any] | None:
-        application_id = payload.get("application_id")
         application_row_id = payload.get("application_row_id") or payload.get("row_id")
 
-        normalized_application_id = self._normalize_int(
-            value=application_id,
-            field_name="application_id",
-            event_id=event_id,
-            is_required=False,
-        )
         normalized_row_id = self._normalize_int(
             value=application_row_id,
             field_name="application_row_id",
@@ -182,20 +175,10 @@ class ApplicationDiffButtonHandler:
             is_required=False,
         )
 
-        if normalized_application_id is None and normalized_row_id is None:
-            self._logger.warning(
-                "Neither application_id nor application_row_id is available for event_id=%s",
-                event_id,
-            )
-
-            return None
-
         request: dict[str, Any] = {
             "update_direction": update_direction,
         }
 
-        if normalized_application_id is not None:
-            request["application_id"] = normalized_application_id
         if normalized_row_id is not None:
             request["application_row_id"] = normalized_row_id
 

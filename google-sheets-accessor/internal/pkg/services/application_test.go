@@ -1478,7 +1478,7 @@ func TestApplicationServiceCleanUpMeetingsInBatches(t *testing.T) {
 				repo.On("Save", mock.Anything, mock.MatchedBy(func(apps []*models.Application) bool {
 					return len(apps) == 1 && apps[0].Status == enums.ApplicationStatusPending
 				})).Return(nil).Once()
-				repo.On("FindByID", mock.Anything, int64(1)).Return(appMeeting, nil).Once()
+				repo.On("FindByRowID", mock.Anything, int64(3)).Return(appMeeting, nil).Once()
 			},
 			setupSheets: func(svc *mocks.SheetsServiceMock) {
 				svc.On("GetApplicationFromRow", mock.Anything, int64(3)).

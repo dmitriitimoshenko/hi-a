@@ -1050,7 +1050,7 @@ func (s *ApplicationService) cleanUpMeetings(ctx context.Context, applications [
 			updatedCount++
 
 			g.Go(func() error {
-				if err := s.SyncFromDB(gctx, application.ID); err != nil {
+				if err := s.SyncFromDB(gctx, application.RowID); err != nil {
 					return err
 				}
 

@@ -40,6 +40,17 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 		return errors.New("failed to extract applicationUpdateData from kafka message")
 	}
 
+	dbApplication, err := h.applicationService.FindByID(ctx, applicationUpdateData.MappedApplication.ID)
+	if err != nil {
+		h.logger.Error(
+			"failed to find application by ID",
+			slog.String("kafka_key", key),
+			slog.Int64("application_id", applicationUpdateData.MappedApplication.ID),
+			slog.String("err", err.Error()),
+		)
+		return fmt.Errorf("failed to find application by ID [%d]: %w", applicationUpdateData.MappedApplication.ID, err)
+	}
+
 	mappedApplication := applicationUpdateData.MappedApplication
 	mappedApplicationSalaryApplied := mappedApplication.SalaryApplied
 	mappedApplicationSalaryProposed := mappedApplication.SalaryProposed
@@ -83,6 +94,7 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 		Meta:           *meta,
 		SalaryApplied:  updateApplicationSalaryAppliedDTO,
 		SalaryProposed: updateApplicationSalaryProposedDTO,
+		Embedding:      tools.EmbeddingToSlice(dbApplication.Embedding),
 	}
 
 	if err := h.applicationService.UpdateAndSync(ctx, updateApplicationDTO); err != nil {

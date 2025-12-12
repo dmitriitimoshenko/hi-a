@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	kafkamessages "github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/kafka/handlers/messages"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/enums"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/services/dto"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/tools"
@@ -111,6 +112,13 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 		return
 	}
 
+	callbackMessage := update.CallbackQuery.Message.Message
+	if callbackMessage == nil {
+		h.notifyInternalError(ctx, b, update)
+		h.logger.Error("[handleMappingConfirmation] callback message is nil", "label", emailLabel)
+		return
+	}
+
 	cacheKey := fmt.Sprintf("%d:%s", update.CallbackQuery.From.ID, emailID)
 	val, ok, err := h.redisClient.Get(ctx, cacheKey)
 	if err != nil {
@@ -152,8 +160,24 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 		return
 	}
 
+	var payload kafkamessages.NotificationMessage
+	if err = json.Unmarshal([]byte(val), &payload); err != nil {
+		h.logger.Error("[handleMappingConfirmation] failed to unmarshal payload before publish", "err", err)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
+	payload.Action = "cnfm"
+
+	confirmPayload, err := json.Marshal(payload)
+	if err != nil {
+		h.logger.Error("[handleMappingConfirmation] failed to marshal payload before publish", "err", err)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
 	topicToPublish := os.Getenv("KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED")
-	if err = h.kafkaClient.Publish(ctx, topicToPublish, []byte(applicationUpdateUnprocessedConfirmKey), []byte(val)); err != nil {
+	if err = h.kafkaClient.Publish(ctx, topicToPublish, []byte(applicationUpdateUnprocessedConfirmKey), confirmPayload); err != nil {
 		h.logger.Error("[handleMappingConfirmation] failed to publish to kafka", "err", err, "label", emailLabel)
 		h.notifyInternalError(ctx, b, update)
 		return
@@ -165,13 +189,13 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 		return
 	}
 
-	if err = h.removeInlineKeyboard(ctx, b, update.Message); err != nil {
+	if err = h.removeInlineKeyboard(ctx, b, callbackMessage); err != nil {
 		h.logger.Error("[handleMappingConfirmation] failed to remove inline keyboard", "err", err)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
 
-	replyMessage := update.Message.ReplyToMessage
+	replyMessage := callbackMessage.ReplyToMessage
 	if err = h.appendLineToMessage(ctx, b, confirmMessage, replyMessage); err != nil {
 		h.logger.Error("[handleMappingConfirmation] failed to append line to message", "err", err)
 		h.notifyInternalError(ctx, b, update)
@@ -203,6 +227,13 @@ func (h *TelegramBotHandler) handleMappingDetails(ctx context.Context, b *tgbot.
 	}
 
 	userID := update.CallbackQuery.From.ID
+
+	callbackMessage := update.CallbackQuery.Message.Message
+	if callbackMessage == nil {
+		h.notifyInternalError(ctx, b, update)
+		h.logger.Error("[handleMappingDetails] callback message is nil", "label", emailLabel)
+		return
+	}
 
 	cacheKey := fmt.Sprintf("%d:%s", userID, emailID)
 	val, ok, err := h.redisClient.Get(ctx, cacheKey)
@@ -263,7 +294,7 @@ func (h *TelegramBotHandler) handleMappingDetails(ctx context.Context, b *tgbot.
 	messageChunks := h.splitIntoChunks(pretty, maxCharsPerMessage)
 	for _, chunk := range messageChunks {
 		_, err := b.SendMessage(ctx, &tgbot.SendMessageParams{
-			ChatID:    update.CallbackQuery.Message.Message.Chat.ID,
+			ChatID:    callbackMessage.Chat.ID,
 			Text:      fmt.Sprintf("<pre>%s</pre>", chunk),
 			ParseMode: models.ParseModeHTML,
 		})
@@ -279,6 +310,13 @@ func (h *TelegramBotHandler) handleMappingSkip(ctx context.Context, b *tgbot.Bot
 	if emailID == "" {
 		h.notifyInternalError(ctx, b, update)
 		h.logger.Error("[handleMappingSkip] emailID is empty", "label", emailLabel)
+		return
+	}
+
+	callbackMessage := update.CallbackQuery.Message.Message
+	if callbackMessage == nil {
+		h.notifyInternalError(ctx, b, update)
+		h.logger.Error("[handleMappingSkip] callback message is nil", "label", emailLabel)
 		return
 	}
 
@@ -317,7 +355,7 @@ func (h *TelegramBotHandler) handleMappingSkip(ctx context.Context, b *tgbot.Bot
 	}
 
 	if _, err = b.SendMessage(ctx, &tgbot.SendMessageParams{
-		ChatID:      update.CallbackQuery.Message.Message.Chat.ID,
+		ChatID:      callbackMessage.Chat.ID,
 		Text:        "Please select a reason for skipping the mapping:",
 		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: skipKeyboard,
@@ -348,8 +386,24 @@ func (h *TelegramBotHandler) handleSkipReason(ctx context.Context, b *tgbot.Bot,
 		return
 	}
 
+	_, err := b.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
+		CallbackQueryID: update.CallbackQuery.ID,
+	})
+	if err != nil {
+		h.logger.Error("[handleSkipReason] failed to answer callback query", "err", err)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
+	callbackMessage := update.CallbackQuery.Message.Message
+	if callbackMessage == nil {
+		h.notifyInternalError(ctx, b, update)
+		h.logger.Error("[handleSkipReason] callback message is nil", "emailID", emailID)
+		return
+	}
+
 	if skipReasonStr == enums.MappingSkipOptionBack {
-		if err := h.removeInlineKeyboard(ctx, b, update.Message); err != nil {
+		if err := h.removeInlineKeyboard(ctx, b, callbackMessage); err != nil {
 			h.logger.Error("[handleSkipReason] failed to remove inline keyboard", "err", err)
 			h.notifyInternalError(ctx, b, update)
 			return
@@ -370,22 +424,24 @@ func (h *TelegramBotHandler) handleSkipReason(ctx context.Context, b *tgbot.Bot,
 		return
 	}
 
-	if err = h.removeInlineKeyboard(ctx, b, update.Message); err != nil {
+	if err = h.removeInlineKeyboard(ctx, b, callbackMessage); err != nil {
 		h.logger.Error("[handleSkipReason] failed to remove inline keyboard", "err", err)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
 
-	replyMessage := update.Message.ReplyToMessage
+	replyMessage := callbackMessage.ReplyToMessage
 	if err = h.appendLineToMessage(ctx, b, fmt.Sprintf("⏭️ Skipped (Reason: %s)", skipReasonStr), replyMessage); err != nil {
 		h.logger.Error("[handleSkipReason] failed to append line to message", "err", err)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
-	if err = h.removeInlineKeyboard(ctx, b, replyMessage); err != nil {
-		h.logger.Error("[handleSkipReason] failed to remove inline keyboard from reply message", "err", err)
-		h.notifyInternalError(ctx, b, update)
-		return
+	if replyMessage != nil {
+		if err = h.removeInlineKeyboard(ctx, b, replyMessage); err != nil {
+			h.logger.Error("[handleSkipReason] failed to remove inline keyboard from reply message", "err", err)
+			h.notifyInternalError(ctx, b, update)
+			return
+		}
 	}
 
 	feedbackTopic := os.Getenv(KAFKA_TOPIC_FEEDBACK)
@@ -449,6 +505,11 @@ func (h *TelegramBotHandler) handleSkipReason(ctx context.Context, b *tgbot.Bot,
 }
 
 func (h *TelegramBotHandler) notifyInternalError(ctx context.Context, b *tgbot.Bot, update *models.Update) {
+	if update.CallbackQuery == nil || update.CallbackQuery.Message.Message == nil {
+		h.logger.Error("[notifyInternalError] missing callback message context")
+		return
+	}
+
 	_, err := b.SendMessage(ctx, &tgbot.SendMessageParams{
 		ChatID: update.CallbackQuery.Message.Message.Chat.ID,
 		Text:   errorMessage,

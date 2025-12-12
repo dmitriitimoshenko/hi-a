@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/tgbt"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/enums"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/services/dto"
 	"github.com/go-telegram/bot/models"
@@ -22,10 +21,10 @@ const (
 )
 
 type TelegramBotService struct {
-	botClient *tgbt.Client
+	botClient botClient
 }
 
-func NewTelegramBotService(botClient *tgbt.Client) *TelegramBotService {
+func NewTelegramBotService(botClient botClient) *TelegramBotService {
 	return &TelegramBotService{
 		botClient: botClient,
 	}

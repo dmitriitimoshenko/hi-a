@@ -57,7 +57,7 @@ func (h *NotificationHandler) Handle(ctx context.Context, message kafkaclient.Me
 		false,
 	)
 
-	cacheKey := string(message.Key)
+	cacheKey := fmt.Sprintf("notification:%s", message.Key)
 	ok, err := h.redisClient.Set(ctx, cacheKey, string(message.Value), newEmailMappedCacheTTL)
 	if err != nil {
 		h.logger.Error("failed to set cache for application diff", "err", err)

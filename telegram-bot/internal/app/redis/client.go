@@ -64,15 +64,6 @@ func (c *Client) Delete(ctx context.Context, key string) (int64, error) {
 	return deleted, nil
 }
 
-func (c *Client) Exists(ctx context.Context, key string) (bool, error) {
-	exists, err := c.client.Exists(ctx, key).Result()
-	if err != nil {
-		return false, fmt.Errorf("failed to check key %s existence: %w", key, err)
-	}
-
-	return exists > 0, nil
-}
-
 func (c *Client) FlushAll(ctx context.Context) error {
 	if err := c.client.FlushAll(ctx).Err(); err != nil {
 		return fmt.Errorf("failed to flush redis: %w", err)

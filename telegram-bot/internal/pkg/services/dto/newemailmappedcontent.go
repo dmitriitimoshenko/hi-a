@@ -8,10 +8,10 @@ import (
 )
 
 type NewMappedEmailMessageContent struct {
-	Label             enums.EmailLabel
-	Email             EmailPayload
-	MappedApplication ApplicationData
-	EmailID           int64
+	Label             enums.EmailLabel `json:"label"`
+	Email             EmailPayload     `json:"email"`
+	MappedApplication ApplicationData  `json:"mapped_application"`
+	EmailID           int64            `json:"email_id"`
 }
 
 type ApplicationData struct {

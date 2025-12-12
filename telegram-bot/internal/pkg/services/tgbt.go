@@ -10,6 +10,17 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
+const (
+	appliedTemplate           = "You received an email from %s (%s), that tells you have applied on position <b>%s</b> at <b>%s</b>\n\nPlease confirm if I understood everything correctly or let me skip this case"
+	deniedTemplate            = "You received an email from %s (%s), that tells that you application on role <b>%s</b> at <b>%s</b> was denied\n\nPlease confirm if I understood everything correctly or let me skip this case"
+	meetingInvitationTemplate = "You received an email from %s (%s), that tells that you were invited to a meeting for role <b>%s</b> at <b>%s</b>\n\nPlease confirm if I understood everything correctly or let me skip this case"
+	meetingCreatedTemplate    = "You received an email from %s (%s), that tells that a meeting was scheduled to talk with you about role <b>%s</b> at <b>%s</b>\n\nPlease confirm if I understood everything correctly or let me skip this case"
+	meetingUpdatedTemplate    = "You received an email from %s (%s), that tells that a meeting was RE-scheduled to talk with you about role <b>%s</b> at <b>%s</b>\n\nPlease confirm if I understood everything correctly or let me skip this case"
+	meetingCanceledTemplate   = "You received an email from %s (%s), that tells that a meeting about role <b>%s</b> at <b>%s</b> was cancelled\n\nPlease confirm if I understood everything correctly or let me skip this case"
+	offerTemplate             = "Waaait... Is it true?? It seems you received an email from %s (%s), that tells you got an OFFER 🎉🎉🎉 for role <b>%s</b> at <b>%s</b>!\n\nPlease confirm if I understood everything correctly or let me skip this case"
+	defaultTemplate           = "You received an email from %s (%s) about role <b>%s</b> at <b>%s</b>"
+)
+
 type TelegramBotService struct {
 	botClient *tgbt.Client
 }
@@ -98,7 +109,7 @@ func (s *TelegramBotService) BuildNewMappedEmailMessage(
 	switch newMappedEmailMessage.Label {
 	case enums.EmailLabelApplied:
 		return fmt.Sprintf(
-			"You received an email from %s (%s), that tells you have applied on position <b>%s</b> at <b>%s</b>\n\nPlease confirm if I understood everything correctly or let me skip this case",
+			appliedTemplate,
 			senderName,
 			senderEmail,
 			title,
@@ -106,7 +117,7 @@ func (s *TelegramBotService) BuildNewMappedEmailMessage(
 		)
 	case enums.EmailLabelDenied:
 		return fmt.Sprintf(
-			"You received an email from %s (%s), that tells that you application on role <b>%s</b> at <b>%s</b> was denied\n\nPlease confirm if I understood everything correctly or let me skip this case",
+			deniedTemplate,
 			senderName,
 			senderEmail,
 			title,
@@ -114,7 +125,7 @@ func (s *TelegramBotService) BuildNewMappedEmailMessage(
 		)
 	case enums.EmailLabelMeetingInv:
 		return fmt.Sprintf(
-			"You received an email from %s (%s), that tells that you were invited to a meeting for role <b>%s</b> at <b>%s</b>\n\nPlease confirm if I understood everything correctly or let me skip this case",
+			meetingInvitationTemplate,
 			senderName,
 			senderEmail,
 			title,
@@ -122,7 +133,7 @@ func (s *TelegramBotService) BuildNewMappedEmailMessage(
 		)
 	case enums.EmailLabelMeetingCrt:
 		return fmt.Sprintf(
-			"You received an email from %s (%s), that tells that a meeting was scheduled to talk with you about role <b>%s</b> at <b>%s</b>\n\nPlease confirm if I understood everything correctly or let me skip this case",
+			meetingCreatedTemplate,
 			senderName,
 			senderEmail,
 			title,
@@ -130,7 +141,7 @@ func (s *TelegramBotService) BuildNewMappedEmailMessage(
 		)
 	case enums.EmailLabelMeetingUpd:
 		return fmt.Sprintf(
-			"You received an email from %s (%s), that tells that a meeting was RE-scheduled to talk with you about role <b>%s</b> at <b>%s</b>\n\nPlease confirm if I understood everything correctly or let me skip this case",
+			meetingUpdatedTemplate,
 			senderName,
 			senderEmail,
 			title,
@@ -138,7 +149,7 @@ func (s *TelegramBotService) BuildNewMappedEmailMessage(
 		)
 	case enums.EmailLabelMeetingCncl:
 		return fmt.Sprintf(
-			"You received an email from %s (%s), that tells that a meeting about role <b>%s</b> at <b>%s</b> was cancelled\n\nPlease confirm if I understood everything correctly or let me skip this case",
+			meetingCanceledTemplate,
 			senderName,
 			senderEmail,
 			title,
@@ -146,7 +157,7 @@ func (s *TelegramBotService) BuildNewMappedEmailMessage(
 		)
 	case enums.EmailLabelOffer:
 		return fmt.Sprintf(
-			"Waaait... Is it true?? It seems you received an email from %s (%s), that tells you got an OFFER 🎉🎉🎉 for role <b>%s</b> at <b>%s</b>!\n\nPlease confirm if I understood everything correctly or let me skip this case",
+			offerTemplate,
 			senderName,
 			senderEmail,
 			title,
@@ -154,7 +165,7 @@ func (s *TelegramBotService) BuildNewMappedEmailMessage(
 		)
 	default:
 		return fmt.Sprintf(
-			"You received an email from %s (%s) about role <b>%s</b> at <b>%s</b>",
+			defaultTemplate,
 			senderName,
 			senderEmail,
 			title,

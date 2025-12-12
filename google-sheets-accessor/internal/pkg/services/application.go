@@ -143,10 +143,10 @@ func (s *ApplicationService) Update(ctx context.Context, applicationDTO dto.Upda
 			if application.SalaryProposedID != nil {
 				salaryProposed.ID = *application.SalaryProposedID
 			}
-			salaryProposed.AmountFrom = applicationDTO.SalaryApplied.AmountFrom
-			salaryProposed.AmountTo = applicationDTO.SalaryApplied.AmountTo
-			salaryProposed.Currency = applicationDTO.SalaryApplied.Currency
-			salaryProposed.Period = applicationDTO.SalaryApplied.Period
+			salaryProposed.AmountFrom = applicationDTO.SalaryProposed.AmountFrom
+			salaryProposed.AmountTo = applicationDTO.SalaryProposed.AmountTo
+			salaryProposed.Currency = applicationDTO.SalaryProposed.Currency
+			salaryProposed.Period = applicationDTO.SalaryProposed.Period
 			if err := tx.Save(&salaryProposed).Error; err != nil {
 				return err
 			}

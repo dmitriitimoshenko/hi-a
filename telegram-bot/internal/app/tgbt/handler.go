@@ -28,6 +28,7 @@ const (
 	KAFKA_TOPIC_FEEDBACK                       = "KAFKA_TOPIC_FEEDBACK"
 	applicationUpdateUnprocessedConfirmKey     = "cnfm_button_pressed"
 
+	detailsCacheRefreshTTL     = 31 * 24 * time.Hour
 	skipReasonSelectedCacheTTL = 31 * 24 * time.Hour
 )
 
@@ -65,36 +66,48 @@ func (h *TelegramBotHandler) Handle(ctx context.Context, b *tgbot.Bot, update *m
 		data := update.CallbackQuery.Data
 
 		switch {
-		case strings.HasPrefix(data, "applied:cnfm:"):
-			h.handleAppliedConfirmation(ctx, b, update)
-		case strings.HasPrefix(data, "applied:dtls:"):
-			h.handleAppliedDetails(ctx, b, update)
-		case strings.HasPrefix(data, "applied:skp:"):
-			h.handlerAppliedSkip(ctx, b, update)
 		case strings.HasPrefix(data, "skipreason:"):
 			h.handleSkipReason(ctx, b, update)
+			return
+		}
+
+		dataParts := strings.Split(data, ":")
+		if len(dataParts) < 3 {
+			h.logger.Error("invalid callback data format", slog.String("data", data))
+			return
+		}
+
+		emailLabel := enums.EmailLabel(dataParts[0])
+		if !emailLabel.IsValid() {
+			h.logger.Error("unsupported callback prefix", slog.String("prefix", string(emailLabel)))
+			return
+		}
+
+		action := dataParts[1]
+		emailID := dataParts[len(dataParts)-1]
+		switch action {
+		case "cnfm":
+			h.handleMappingConfirmation(ctx, b, update, emailLabel, emailID)
+		case "dtls":
+			h.handleMappingDetails(ctx, b, update, emailLabel, emailID)
+		case "skp":
+			h.handleMappingSkip(ctx, b, update, emailLabel, emailID)
 		default:
-			h.logger.Error("unknown callback query data", slog.String("data", data))
+			h.logger.Error("unknown callback action", slog.String("action", action))
 		}
 	}
 }
 
-func (h *TelegramBotHandler) handleAppliedConfirmation(ctx context.Context, b *tgbot.Bot, update *models.Update) {
-	data := update.CallbackQuery.Data
-
-	dataParts := strings.Split(data, ":")
-
-	emailID := dataParts[len(dataParts)-1]
-	if emailID == "" && update.CallbackQuery != nil {
+func (h *TelegramBotHandler) handleMappingConfirmation(
+	ctx context.Context,
+	b *tgbot.Bot,
+	update *models.Update,
+	emailLabel enums.EmailLabel,
+	emailID string,
+) {
+	if emailID == "" {
 		h.notifyInternalError(ctx, b, update)
-		h.logger.Error("[handleAppliedConfirmation] emailID is empty")
-		return
-	}
-
-	prefix := enums.EmailLabel(dataParts[0])
-	if !prefix.IsValid() || prefix != enums.EmailLabelApplied {
-		h.notifyInternalError(ctx, b, update)
-		h.logger.Error("[handleAppliedConfirmation] invalid prefix of not \"applied\"", "prefix", prefix)
+		h.logger.Error("[handleMappingConfirmation] emailID is empty", "label", emailLabel)
 		return
 	}
 
@@ -102,7 +115,7 @@ func (h *TelegramBotHandler) handleAppliedConfirmation(ctx context.Context, b *t
 	val, ok, err := h.redisClient.Get(ctx, cacheKey)
 	if err != nil {
 		h.notifyInternalError(ctx, b, update)
-		h.logger.Error("[handleAppliedConfirmation] failed to get from redis", "err", err)
+		h.logger.Error("[handleMappingConfirmation] failed to get from redis", "err", err)
 		return
 	}
 	if !ok {
@@ -112,12 +125,12 @@ func (h *TelegramBotHandler) handleAppliedConfirmation(ctx context.Context, b *t
 			ShowAlert:       false,
 		})
 		if err != nil {
-			h.logger.Error("[handleAppliedConfirmation] failed to answer callback query", "err", err)
+			h.logger.Error("[handleMappingConfirmation] failed to answer callback query", "err", err)
 			h.notifyInternalError(ctx, b, update)
 			return
 		}
 		if !ok {
-			h.logger.Error("[handleAppliedConfirmation] failed to answer callback query: not ok")
+			h.logger.Error("[handleMappingConfirmation] failed to answer callback query: not ok")
 			h.notifyInternalError(ctx, b, update)
 			return
 		}
@@ -129,38 +142,38 @@ func (h *TelegramBotHandler) handleAppliedConfirmation(ctx context.Context, b *t
 		ShowAlert:       false,
 	})
 	if err != nil {
-		h.logger.Error("[handleAppliedConfirmation] failed to answer callback query", "err", err)
+		h.logger.Error("[handleMappingConfirmation] failed to answer callback query", "err", err)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
 	if !ok {
-		h.logger.Error("[handleAppliedConfirmation] failed to answer callback query: not ok")
+		h.logger.Error("[handleMappingConfirmation] failed to answer callback query: not ok")
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
 
 	topicToPublish := os.Getenv("KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED")
 	if err = h.kafkaClient.Publish(ctx, topicToPublish, []byte(applicationUpdateUnprocessedConfirmKey), []byte(val)); err != nil {
-		h.logger.Error("[handleAppliedConfirmation] failed to publish to kafka", "err", err)
+		h.logger.Error("[handleMappingConfirmation] failed to publish to kafka", "err", err, "label", emailLabel)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
 
 	if _, err = h.redisClient.Delete(ctx, cacheKey); err != nil {
-		h.logger.Error("[handleAppliedConfirmation] failed to delete from redis", "err", err)
+		h.logger.Error("[handleMappingConfirmation] failed to delete from redis", "err", err)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
 
 	if err = h.removeInlineKeyboard(ctx, b, update.Message); err != nil {
-		h.logger.Error("[handleAppliedConfirmation] failed to remove inline keyboard", "err", err)
+		h.logger.Error("[handleMappingConfirmation] failed to remove inline keyboard", "err", err)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
 
 	replyMessage := update.Message.ReplyToMessage
 	if err = h.appendLineToMessage(ctx, b, confirmMessage, replyMessage); err != nil {
-		h.logger.Error("[handleAppliedConfirmation] failed to append line to message", "err", err)
+		h.logger.Error("[handleMappingConfirmation] failed to append line to message", "err", err)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
@@ -171,26 +184,21 @@ func (h *TelegramBotHandler) handleAppliedConfirmation(ctx context.Context, b *t
 		ShowAlert:       false,
 	})
 	if err != nil {
-		h.logger.Error("[handleAppliedConfirmation] failed to answer callback query", "err", err)
+		h.logger.Error("[handleMappingConfirmation] failed to answer callback query", "err", err)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
 	if !ok {
-		h.logger.Error("[handleAppliedConfirmation] failed to answer callback query: not ok")
+		h.logger.Error("[handleMappingConfirmation] failed to answer callback query: not ok")
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
 }
 
-func (h *TelegramBotHandler) handleAppliedDetails(ctx context.Context, b *tgbot.Bot, update *models.Update) {
-	data := update.CallbackQuery.Data
-
-	dataParts := strings.Split(data, ":")
-
-	emailID := dataParts[len(dataParts)-1]
-	if emailID == "" && update.CallbackQuery != nil {
+func (h *TelegramBotHandler) handleMappingDetails(ctx context.Context, b *tgbot.Bot, update *models.Update, emailLabel enums.EmailLabel, emailID string) {
+	if emailID == "" {
 		h.notifyInternalError(ctx, b, update)
-		h.logger.Error("[handleAppliedDetails] emailID is empty")
+		h.logger.Error("[handleMappingDetails] emailID is empty", "label", emailLabel)
 		return
 	}
 
@@ -200,7 +208,7 @@ func (h *TelegramBotHandler) handleAppliedDetails(ctx context.Context, b *tgbot.
 	val, ok, err := h.redisClient.Get(ctx, cacheKey)
 	if err != nil {
 		h.notifyInternalError(ctx, b, update)
-		h.logger.Error("[handleAppliedDetails] failed to get from redis", "err", err)
+		h.logger.Error("[handleMappingDetails] failed to get from redis", "err", err)
 		return
 	}
 	if !ok {
@@ -210,15 +218,21 @@ func (h *TelegramBotHandler) handleAppliedDetails(ctx context.Context, b *tgbot.
 			ShowAlert:       false,
 		})
 		if err != nil {
-			h.logger.Error("[handleAppliedConfirmation] failed to answer callback query", "err", err)
+			h.logger.Error("[handleMappingDetails] failed to answer callback query", "err", err)
 			h.notifyInternalError(ctx, b, update)
 			return
 		}
 		if !ok {
-			h.logger.Error("[handleAppliedConfirmation] failed to answer callback query: not ok")
+			h.logger.Error("[handleMappingDetails] failed to answer callback query: not ok")
 			h.notifyInternalError(ctx, b, update)
 			return
 		}
+	}
+
+	if err := h.refreshDetailsCache(ctx, cacheKey, val); err != nil {
+		h.logger.Error("[handleMappingDetails] failed to refresh details cache", "err", err, "label", emailLabel)
+		h.notifyInternalError(ctx, b, update)
+		return
 	}
 
 	ok, err = b.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
@@ -227,12 +241,12 @@ func (h *TelegramBotHandler) handleAppliedDetails(ctx context.Context, b *tgbot.
 		ShowAlert:       false,
 	})
 	if err != nil {
-		h.logger.Error("[handleAppliedConfirmation] failed to answer callback query", "err", err)
+		h.logger.Error("[handleMappingDetails] failed to answer callback query", "err", err)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
 	if !ok {
-		h.logger.Error("[handleAppliedConfirmation] failed to answer callback query: not ok")
+		h.logger.Error("[handleMappingDetails] failed to answer callback query: not ok")
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
@@ -240,7 +254,7 @@ func (h *TelegramBotHandler) handleAppliedDetails(ctx context.Context, b *tgbot.
 	raw := []byte(val)
 	var buf bytes.Buffer
 	if err := json.Indent(&buf, raw, "", "  "); err != nil {
-		h.logger.Error("[handleAppliedConfirmation] failed to prettify json of details", "err", err)
+		h.logger.Error("[handleMappingDetails] failed to prettify json of details", "err", err)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
@@ -254,22 +268,17 @@ func (h *TelegramBotHandler) handleAppliedDetails(ctx context.Context, b *tgbot.
 			ParseMode: models.ParseModeHTML,
 		})
 		if err != nil {
-			h.logger.Error("[handleAppliedDetails] failed to send details message in Telegram", "err", err)
+			h.logger.Error("[handleMappingDetails] failed to send details message in Telegram", "err", err)
 			h.notifyInternalError(ctx, b, update)
 			return
 		}
 	}
 }
 
-func (h *TelegramBotHandler) handlerAppliedSkip(ctx context.Context, b *tgbot.Bot, update *models.Update) {
-	data := update.CallbackQuery.Data
-
-	dataParts := strings.Split(data, ":")
-
-	emailID := dataParts[len(dataParts)-1]
-	if emailID == "" && update.CallbackQuery != nil {
+func (h *TelegramBotHandler) handleMappingSkip(ctx context.Context, b *tgbot.Bot, update *models.Update, emailLabel enums.EmailLabel, emailID string) {
+	if emailID == "" {
 		h.notifyInternalError(ctx, b, update)
-		h.logger.Error("[handleAppliedDetails] emailID is empty")
+		h.logger.Error("[handleMappingSkip] emailID is empty", "label", emailLabel)
 		return
 	}
 
@@ -279,11 +288,11 @@ func (h *TelegramBotHandler) handlerAppliedSkip(ctx context.Context, b *tgbot.Bo
 	)
 	if err != nil {
 		h.notifyInternalError(ctx, b, update)
-		h.logger.Error("[handlerAppliedSkip] failed to get skip reason from redis", "err", err)
+		h.logger.Error("[handleMappingSkip] failed to get skip reason from redis", "err", err)
 		return
 	}
 	if ok {
-		h.logger.Info("[handlerAppliedSkip] skip reason already exists, skipping")
+		h.logger.Info("[handleMappingSkip] skip reason already exists, skipping", "label", emailLabel)
 		return
 	}
 
@@ -291,7 +300,7 @@ func (h *TelegramBotHandler) handlerAppliedSkip(ctx context.Context, b *tgbot.Bo
 	for _, mso := range enums.GetAllMappingSkipOptions() {
 		buttonText, err := h.getSkipReasonsButtonTexts(mso)
 		if err != nil {
-			h.logger.Error("[handlerAppliedSkip] failed to get skip reason button text", "err", err)
+			h.logger.Error("[handleMappingSkip] failed to get skip reason button text", "err", err)
 			h.notifyInternalError(ctx, b, update)
 			return
 		}
@@ -313,7 +322,7 @@ func (h *TelegramBotHandler) handlerAppliedSkip(ctx context.Context, b *tgbot.Bo
 		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: skipKeyboard,
 	}); err != nil {
-		h.logger.Error("[handlerAppliedSkip] failed to send skip reason message in Telegram", "err", err)
+		h.logger.Error("[handleMappingSkip] failed to send skip reason message in Telegram", "err", err)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
@@ -367,7 +376,6 @@ func (h *TelegramBotHandler) handleSkipReason(ctx context.Context, b *tgbot.Bot,
 		return
 	}
 
-	// remove skip reason message and hide keyboard with options "Confirm" and "Details" and "skip"
 	replyMessage := update.Message.ReplyToMessage
 	if err = h.appendLineToMessage(ctx, b, fmt.Sprintf("⏭️ Skipped (Reason: %s)", skipReasonStr), replyMessage); err != nil {
 		h.logger.Error("[handleSkipReason] failed to append line to message", "err", err)
@@ -420,6 +428,7 @@ func (h *TelegramBotHandler) handleSkipReason(ctx context.Context, b *tgbot.Bot,
 		},
 		Payload: *newMappedEmailMessageContent,
 	}
+
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
 		h.logger.Error("[handleSkipReason] failed to marshal payload", "err", err)
@@ -517,4 +526,16 @@ func (h *TelegramBotHandler) getSkipReasonsButtonTexts(mso enums.MappingSkipOpti
 	}
 
 	return tools.ToPtr(m[mso]), nil
+}
+
+func (h *TelegramBotHandler) refreshDetailsCache(ctx context.Context, key string, value string) error {
+	ok, err := h.redisClient.Set(ctx, key, value, detailsCacheRefreshTTL)
+	if err != nil {
+		return fmt.Errorf("failed to refresh details cache: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("details cache refresh returned not ok for key %s", key)
+	}
+
+	return nil
 }

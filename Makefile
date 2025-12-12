@@ -22,6 +22,7 @@ down-k8s:
 
 up:
 	COMPOSE_BAKE=true docker compose up -d
+	COMPOSE_BAKE=true docker compose up -d
 	lazydocker
 
 down:

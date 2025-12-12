@@ -3,7 +3,7 @@ package tools_test
 import (
 	"testing"
 
-	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/tools"
+	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/tools"
 	"github.com/magiconair/properties/assert"
 )
 

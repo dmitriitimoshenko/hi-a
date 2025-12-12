@@ -5,18 +5,25 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	kafkaclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
 	aup "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka/handlers/messages/applicationupdateprocessed"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services/dto"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/tools"
 )
 
 type ApplicationUpdateProcessedHandler struct {
+	logger             *slog.Logger
 	applicationService applicationService
 }
 
-func NewApplicationUpdateProcessedHandler(applicationService applicationService) *ApplicationUpdateProcessedHandler {
+func NewApplicationUpdateProcessedHandler(
+	logger *slog.Logger,
+	applicationService applicationService,
+) *ApplicationUpdateProcessedHandler {
 	return &ApplicationUpdateProcessedHandler{
+		logger:             logger,
 		applicationService: applicationService,
 	}
 }
@@ -33,23 +40,44 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 		return errors.New("failed to extract applicationUpdateData from kafka message")
 	}
 
-	mappedApplication := applicationUpdateData.MappedApplication
-	mappedApplicationSalaryApplied := applicationUpdateData.MappedApplication.SalaryApplied
-	mappedApplicationSalaryProposed := applicationUpdateData.MappedApplication.SalaryProposed
-
-	updateApplicationSalaryAppliedDTO := dto.UpdateApplicationSalaryDTO{
-		ID:         mappedApplicationSalaryApplied.ID,
-		AmountFrom: mappedApplicationSalaryApplied.AmountFrom,
-		AmountTo:   mappedApplicationSalaryApplied.AmountTo,
-		Currency:   mappedApplicationSalaryApplied.Currency,
-		Period:     mappedApplicationSalaryApplied.Period,
+	dbApplication, err := h.applicationService.FindByID(ctx, applicationUpdateData.MappedApplication.ID)
+	if err != nil {
+		h.logger.Error(
+			"failed to find application by ID",
+			slog.String("kafka_key", key),
+			slog.Int64("application_id", applicationUpdateData.MappedApplication.ID),
+			slog.String("err", err.Error()),
+		)
+		return fmt.Errorf("failed to find application by ID [%d]: %w", applicationUpdateData.MappedApplication.ID, err)
 	}
-	updateApplicationSalaryProposedDTO := dto.UpdateApplicationSalaryDTO{
-		ID:         mappedApplicationSalaryProposed.ID,
-		AmountFrom: mappedApplicationSalaryProposed.AmountFrom,
-		AmountTo:   mappedApplicationSalaryProposed.AmountTo,
-		Currency:   mappedApplicationSalaryProposed.Currency,
-		Period:     mappedApplicationSalaryProposed.Period,
+
+	mappedApplication := applicationUpdateData.MappedApplication
+	mappedApplicationSalaryApplied := mappedApplication.SalaryApplied
+	mappedApplicationSalaryProposed := mappedApplication.SalaryProposed
+
+	meta, err := tools.ByteToMapStringString(mappedApplication.Meta)
+	if err != nil {
+		return fmt.Errorf("failed to ByteToMapStringString: %w", err)
+	}
+
+	var updateApplicationSalaryAppliedDTO, updateApplicationSalaryProposedDTO *dto.UpdateApplicationSalaryDTO
+	if mappedApplicationSalaryApplied != nil {
+		updateApplicationSalaryAppliedDTO = &dto.UpdateApplicationSalaryDTO{
+			ID:         mappedApplicationSalaryApplied.ID,
+			AmountFrom: mappedApplicationSalaryApplied.AmountFrom,
+			AmountTo:   mappedApplicationSalaryApplied.AmountTo,
+			Currency:   mappedApplicationSalaryApplied.Currency,
+			Period:     mappedApplicationSalaryApplied.Period,
+		}
+	}
+	if mappedApplicationSalaryProposed != nil {
+		updateApplicationSalaryProposedDTO = &dto.UpdateApplicationSalaryDTO{
+			ID:         mappedApplicationSalaryProposed.ID,
+			AmountFrom: mappedApplicationSalaryProposed.AmountFrom,
+			AmountTo:   mappedApplicationSalaryProposed.AmountTo,
+			Currency:   mappedApplicationSalaryProposed.Currency,
+			Period:     mappedApplicationSalaryProposed.Period,
+		}
 	}
 	updateApplicationDTO := dto.UpdateApplicationDTO{
 		ID:             mappedApplication.ID,
@@ -63,13 +91,20 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 		RespondedAt:    mappedApplication.RespondedAt,
 		NextFollowUpAt: mappedApplication.NextFollowUpAt,
 		Stage:          mappedApplication.Stage,
-		Meta:           mappedApplication.Meta,
-		Embedding:      mappedApplication.Embedding,
-		SalaryApplied:  &updateApplicationSalaryAppliedDTO,
-		SalaryProposed: &updateApplicationSalaryProposedDTO,
+		Meta:           *meta,
+		SalaryApplied:  updateApplicationSalaryAppliedDTO,
+		SalaryProposed: updateApplicationSalaryProposedDTO,
+		Embedding:      tools.EmbeddingToSlice(dbApplication.Embedding),
 	}
 
 	if err := h.applicationService.UpdateAndSync(ctx, updateApplicationDTO); err != nil {
+		h.logger.Error(
+			"failed to apply application update",
+			slog.String("kafka_key", key),
+			slog.Any("application_update_data", applicationUpdateData),
+			slog.String("err", err.Error()),
+		)
+
 		return fmt.Errorf("failed to apply application update with kafka key [%s]", key)
 	}
 

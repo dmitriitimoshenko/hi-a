@@ -48,7 +48,7 @@ class KafkaEventHandler:
             mapped_application = masked.get("mapped_application")
             if isinstance(mapped_application, dict) and "embedding" in mapped_application:
                 mapped_application = mapped_application.copy()
-                mapped_application["embedding"] = "hidden"
+                mapped_application["embedding"] = None
                 masked["mapped_application"] = mapped_application
         except Exception:
             self._logger.warning("Failed to hide embedding field for kafka payload")

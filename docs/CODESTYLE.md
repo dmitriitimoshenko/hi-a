@@ -1,8 +1,19 @@
 # Service Code Style
 
-This document captures the coding conventions shared by the Python services in this monorepo. The rules reflect the canonical implementation in `mail-processor/` and `google-sheets-accessor/`. Use it as the primary reference for contributions across services.
+This document captures the coding conventions shared by the services in this monorepo. The Python rules reflect the canonical implementation in `mail-processor/` and `google-sheets-accessor/`. Use it as the primary reference for contributions across services.
 
-## Python Coding Guidelines
+## Golang
+
+- Prefer table-driven tests (`[]struct{ name string; ... }`) over many similar test functions; keep `t.Parallel()` where it does not break expectations.
+- Target full coverage when adding unit tests: cover both successful logic and error branches, exercising private helpers through public methods.
+- Tests live next to the source file (`y_test.go` beside `y.go`) and use the external package form (`package x_test`); keep one test file per source file.
+- Use `github.com/stretchr/testify/mock` for doubles and place reusable mocks under the shared `mocks/` packages.
+- When touching private func behaviour, drive it through public entry points instead of calling unexported helpers directly.
+- For mocking rely on `github.com/stretchr/testify/mock` only; avoid custom stubs/fakes unless the library cannot cover the case.
+
+## Python
+
+### Coding Guidelines
 
 - **Python version**: Assume Python 3.13 features. Use `match`/`|` typing syntax and `list[str]` generics.
 - **Type hints**: Every function (public or private) requires explicit return and parameter annotations.
@@ -43,7 +54,7 @@ def far(bar: int) -> str:
     return bar_str
 ```
 
-## Testing & Tooling Expectations
+### Testing & Tooling Expectations
 
 Prefer focussed `pytest` modules under `service/tests/` mirroring the `app/` structure.
 

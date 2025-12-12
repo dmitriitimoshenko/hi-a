@@ -37,12 +37,18 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 	var diffRequest messages.DiffRequest
 	if err := decoder.Decode(&diffRequest); err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on Diff: %w", err).Error(),
+			"failed to decode diffRequest",
+			slog.Any("error", err),
 		)
 		http.Error(w, "invalid request payload", http.StatusBadRequest)
 
 		return
 	}
+
+	h.logger.Debug(
+		"Diff request received",
+		slog.Any("request", diffRequest),
+	)
 
 	diffs, rowsChecked, err := h.applicationService.GetApplicationsDiff(
 		r.Context(),
@@ -51,7 +57,8 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on Diff: %w", err).Error(),
+			"failed on GetApplicationsDiff call",
+			slog.Any("error", err),
 		)
 		http.Error(w, "failed to get applications diff", http.StatusInternalServerError)
 
@@ -61,7 +68,8 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 	mappedDiff, err := h.mapDiffToResponse(diffs)
 	if err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on Diff: %w", err).Error(),
+			"failed on mapDiffToResponse call",
+			slog.Any("error", err),
 		)
 		http.Error(w, "failed to map diff to response", http.StatusInternalServerError)
 
@@ -80,12 +88,19 @@ func (h *ApplicationHandler) Diff(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on Diff: %w", err).Error(),
+			"failed endode DiffResponse",
+			slog.Any("error", err),
 		)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 
 		return
 	}
+
+	h.logger.Debug(
+		"Successfully run DIFF endpoint",
+		slog.Any("request", diffRequest),
+		slog.Any("response", *resp),
+	)
 }
 
 func (h *ApplicationHandler) mapDiffToResponse(diffs []dto.ApplicationDiffEntry) ([]messages.ApplicationDiffEntry, error) {
@@ -98,7 +113,6 @@ func (h *ApplicationHandler) mapDiffToResponse(diffs []dto.ApplicationDiffEntry)
 				Field:      difference.Field,
 				SheetValue: difference.SheetValue,
 				DBValue:    difference.DBValue,
-				Message:    difference.Message,
 			})
 		}
 		responseDiff = append(responseDiff, messages.ApplicationDiffEntry{
@@ -296,7 +310,8 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var diffRequest messages.DiffUpdateRequest
 	if err := decoder.Decode(&diffRequest); err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on Update: %w", err).Error(),
+			"failure on Update",
+			slog.String("err", err.Error()),
 		)
 		http.Error(w, "invalid request payload", http.StatusBadRequest)
 
@@ -305,11 +320,14 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	h.logger.Debug("diffRequest dump", slog.Any("diffRequest", diffRequest))
+
 	switch diffRequest.UpdateDirection {
 	case enums.DiffUpdateDirectionExternal:
-		if err := h.applicationService.SyncFromDB(ctx, diffRequest.ApplicationID); err != nil {
+		if err := h.applicationService.SyncFromDB(ctx, diffRequest.ApplicationRowID); err != nil {
 			h.logger.Error(
-				fmt.Errorf("failure on Update: %w", err).Error(),
+				"failure on Update",
+				slog.String("err", err.Error()),
 			)
 			http.Error(w, "failed to sync from db", http.StatusInternalServerError)
 
@@ -318,15 +336,17 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	case enums.DiffUpdateDirectionInternal:
 		if err := h.applicationService.SyncFromSheet(ctx, diffRequest.ApplicationRowID); err != nil {
 			h.logger.Error(
-				fmt.Errorf("failure on Update: %w", err).Error(),
+				"failure on Update",
+				slog.String("err", err.Error()),
 			)
-			http.Error(w, "failed to sync from db", http.StatusInternalServerError)
+			http.Error(w, "failed to sync from sheet", http.StatusInternalServerError)
 
 			return
 		}
 	default:
 		h.logger.Error(
-			fmt.Sprintf("failed to parse update direction: diffRequest.UpdateDirection (valid: %v)", diffRequest.UpdateDirection.IsValid()),
+			"failed to parse update direction",
+			slog.Bool("diffRequest.UpdateDirection validity", diffRequest.UpdateDirection.IsValid()),
 		)
 		http.Error(
 			w,
@@ -341,7 +361,8 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte("Successfully updated applications")); err != nil {
 		h.logger.Error(
-			fmt.Errorf("failure on Update: %w", err).Error(),
+			"failure on Update",
+			slog.String("err", err.Error()),
 		)
 		http.Error(w, "failed to write response", http.StatusInternalServerError)
 

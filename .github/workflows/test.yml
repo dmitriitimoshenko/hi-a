@@ -1,0 +1,57 @@
+name: Test
+
+on:
+  pull_request:
+    types: [ opened, synchronize, reopened ]
+  push:
+    branches:
+      - main
+
+jobs:
+  test-go-services:
+    name: ${{ matrix.service.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: Google Sheets Accessor
+            dir: google-sheets-accessor
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.0'
+      - run: go version
+
+      - name: Warm golang cache
+        uses: actions/cache@v4.2.2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ matrix.service.name }}-${{ hashFiles(format('{0}/go.sum', matrix.service.dir)) }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ matrix.service.name }}-
+            ${{ runner.os }}-go-
+
+      - name: Check service directory
+        id: service-dir
+        run: |
+          if [ -d "${{ matrix.service.dir }}" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Directory '${{ matrix.service.dir }}' not found. Tests are skipped." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install dependencies
+        if: steps.service-dir.outputs.exists == 'true'
+        working-directory: ./${{ matrix.service.dir }}
+        run: make gomod && go mod download
+
+      - name: Test ${{ matrix.service.name }}
+        if: steps.service-dir.outputs.exists == 'true'
+        working-directory: ./${{ matrix.service.dir }}
+        run: make test

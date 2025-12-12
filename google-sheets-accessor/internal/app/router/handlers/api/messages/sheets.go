@@ -6,6 +6,6 @@ type SheetsGetRequest struct {
 	SheetCeilFrom string `json:"ceil_from"`
 	SheetCeilTo   string `json:"ceil_to"`
 }
-type SheetsGetResponse struct{
+type SheetsGetResponse struct {
 	Data [][]string `json:"data"`
 }

@@ -9,7 +9,6 @@ import (
 /// DIFF request
 
 type DiffRequest struct {
-	ID         string    `json:"id"`
 	SheetRange DiffRange `json:"sheet_range"`
 }
 
@@ -42,13 +41,12 @@ type ApplicationDiffChange struct {
 	Field      string      `json:"field"`
 	SheetValue interface{} `json:"sheet_value"`
 	DBValue    interface{} `json:"db_value"`
-	Message    string      `json:"message"`
 }
 
 // FETCH response
 
 type FetchRequest struct {
-	Data FetchData
+	Data FetchData `json:"data"`
 }
 
 type FetchData struct {
@@ -59,7 +57,7 @@ type FetchData struct {
 // LPR response
 
 type LastProcessedRowResponse struct {
-	Data LastProcessedRowData
+	Data LastProcessedRowData `json:"data"`
 }
 
 type LastProcessedRowData struct {
@@ -75,7 +73,7 @@ type ListRequest struct {
 }
 
 type ListResponse struct {
-	Data []ListApplicationData
+	Data []ListApplicationData `json:"data"`
 }
 
 type ListApplicationData struct {
@@ -123,7 +121,6 @@ type ListSalaryData struct {
 // UPDATE INTERNAL request
 
 type DiffUpdateRequest struct {
-	ApplicationID    int64                     `json:"application_id"`
 	ApplicationRowID int64                     `json:"application_row_id"`
 	UpdateDirection  enums.DiffUpdateDirection `json:"update_direction"`
 }

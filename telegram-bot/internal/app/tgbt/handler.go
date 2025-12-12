@@ -119,7 +119,7 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 		return
 	}
 
-	cacheKey := fmt.Sprintf("%d:%s", update.CallbackQuery.From.ID, emailID)
+	cacheKey := fmt.Sprintf("%s:%s", "notification", emailID)
 	val, ok, err := h.redisClient.Get(ctx, cacheKey)
 	if err != nil {
 		h.notifyInternalError(ctx, b, update)
@@ -226,8 +226,6 @@ func (h *TelegramBotHandler) handleMappingDetails(ctx context.Context, b *tgbot.
 		return
 	}
 
-	userID := update.CallbackQuery.From.ID
-
 	callbackMessage := update.CallbackQuery.Message.Message
 	if callbackMessage == nil {
 		h.notifyInternalError(ctx, b, update)
@@ -235,7 +233,7 @@ func (h *TelegramBotHandler) handleMappingDetails(ctx context.Context, b *tgbot.
 		return
 	}
 
-	cacheKey := fmt.Sprintf("%d:%s", userID, emailID)
+	cacheKey := fmt.Sprintf("%s:%s", "notification", emailID)
 	val, ok, err := h.redisClient.Get(ctx, cacheKey)
 	if err != nil {
 		h.notifyInternalError(ctx, b, update)

@@ -22,15 +22,16 @@ import (
 )
 
 const (
-	errorMessage              = "⭕ INTERNAL ERROR OCCURED ⭕"
-	confirmPopUpMessage       = "☑️ Confirming..."
-	updateDBPopUpMessage      = "Updating internal..."
-	updateSheetPopUpMessage   = "Updating sheet..."
-	confirmMessage            = "✅ Confirmed"
-	dbUpdateSuccessMessage    = "✅ Changes applied to the database"
-	sheetUpdateSuccessMessage = "✅ Google Sheet updated from the database"
-	detailsMissingMessage     = "ℹ️ Details for this event are not available anymore"
-	detailsCommingMessage     = "☑️ Details will be sent to you shortly"
+	errorMessage               = "⭕ INTERNAL ERROR OCCURED ⭕"
+	confirmPopUpMessage        = "☑️ Confirming..."
+	updateDBPopUpMessage       = "☑️ Updating internal..."
+	updateSheetPopUpMessage    = "☑️ Updating sheet..."
+	confirmMessage             = "✅ Confirmed"
+	dbUpdateSuccessMessage     = "✅ Changes applied to the database"
+	sheetUpdateSuccessMessage  = "✅ Google Sheet updated from the database"
+	detailsMissingMessage      = "ℹ️ Details for this event are not available anymore"
+	detailsCommingMessage      = "☑️ Details will be sent to you shortly"
+	applicationDiffSkipMessage = "☑️ Skipped"
 
 	KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED = "KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED"
 	KAFKA_TOPIC_FEEDBACK                       = "KAFKA_TOPIC_FEEDBACK"
@@ -390,7 +391,37 @@ func (h *TelegramBotHandler) handleApplicationDiffSkip(
 	update *models.Update,
 	eventID string,
 ) {
-	h.logger.Info("application diff skip handler is not implemented yet", slog.String("event_id", eventID))
+	callbackMessage := update.CallbackQuery.Message.Message
+	if callbackMessage == nil {
+		h.logger.Error("[handleApplicationDiffSkip] callback message is nil", slog.String("event_id", eventID))
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
+	cacheKey := fmt.Sprintf("%s:%s", enums.CallbackPrefixApplicationDiff, eventID)
+	if _, err := h.redisClient.Delete(ctx, cacheKey); err != nil {
+		h.logger.Error("[handleApplicationDiffSkip] failed to delete cached payload from redis", "err", err, "cacheKey", cacheKey)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
+	if _, err := b.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
+		CallbackQueryID: update.CallbackQuery.ID,
+		Text:            applicationDiffSkipMessage,
+		ShowAlert:       false,
+	}); err != nil {
+		h.logger.Error("[handleApplicationDiffSkip] failed to answer callback query", "err", err)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
+	if err := h.removeInlineKeyboard(ctx, b, callbackMessage); err != nil {
+		h.logger.Error("[handleApplicationDiffSkip] failed to remove inline keyboard", "err", err)
+	}
+
+	if err := h.appendLineToMessage(ctx, b, applicationDiffSkipMessage, callbackMessage); err != nil {
+		h.logger.Error("[handleApplicationDiffSkip] failed to append skip message", "err", err)
+	}
 }
 
 func (h *TelegramBotHandler) handleMappingConfirmation(

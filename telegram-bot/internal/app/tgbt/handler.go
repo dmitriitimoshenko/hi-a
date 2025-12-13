@@ -5,12 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	kafkamessages "github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/kafka/handlers/messages"
+	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/tgbt/messages"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/enums"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/services/dto"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/tools"
@@ -21,7 +24,9 @@ import (
 const (
 	errorMessage          = "⭕ INTERNAL ERROR OCCURED ⭕"
 	confirmPopUpMessage   = "☑️ Confirming..."
+	applyPopUpMessage     = "Applying..."
 	confirmMessage        = "✅ Confirmed"
+	applySuccessMessage   = "✅ Changes applied to the database"
 	detailsMissingMessage = "ℹ️ Details for this event are not available anymore"
 	detailsCommingMessage = "☑️ Details will be sent to you shortly"
 
@@ -31,6 +36,8 @@ const (
 
 	detailsCacheRefreshTTL     = 31 * 24 * time.Hour
 	skipReasonSelectedCacheTTL = 31 * 24 * time.Hour
+
+	gsaDiffUpdateEndpoint = "http://google-sheets-accessor:8083/api/application/diff/update"
 )
 
 type redisClient interface {
@@ -66,8 +73,7 @@ func (h *TelegramBotHandler) Handle(ctx context.Context, b *tgbot.Bot, update *m
 	case update.CallbackQuery != nil:
 		data := update.CallbackQuery.Data
 
-		switch {
-		case strings.HasPrefix(data, "skipreason:"):
+		if strings.HasPrefix(data, "skipreason:") {
 			h.handleSkipReason(ctx, b, update)
 			return
 		}
@@ -75,6 +81,12 @@ func (h *TelegramBotHandler) Handle(ctx context.Context, b *tgbot.Bot, update *m
 		dataParts := strings.Split(data, ":")
 		if len(dataParts) < 3 {
 			h.logger.Error("invalid callback data format", slog.String("data", data))
+			return
+		}
+
+		callbackPrefix := enums.CallbackPrefix(dataParts[0])
+		if callbackPrefix.IsValid() {
+			h.handleApplicationDiff(ctx, b, update, dataParts[1], dataParts[2])
 			return
 		}
 
@@ -97,6 +109,173 @@ func (h *TelegramBotHandler) Handle(ctx context.Context, b *tgbot.Bot, update *m
 			h.logger.Error("unknown callback action", slog.String("action", action))
 		}
 	}
+}
+
+func (h *TelegramBotHandler) handleApplicationDiff(
+	ctx context.Context,
+	b *tgbot.Bot,
+	update *models.Update,
+	action string,
+	eventID string,
+) {
+	if eventID == "" {
+		h.notifyInternalError(ctx, b, update)
+		h.logger.Error("[handleApplicationDiff] eventID is empty", slog.String("action", action))
+		return
+	}
+
+	switch action {
+	case "aplsh":
+		h.handleApplicationDiffApplySheet(ctx, b, update, eventID)
+	case "aplin":
+		h.handleApplicationDiffApplyInternal(ctx, b, update, eventID)
+	case "skp":
+		h.handleApplicationDiffSkip(ctx, b, update, eventID)
+	default:
+		h.logger.Error("unknown application diff action", slog.String("action", action))
+	}
+}
+
+func (h *TelegramBotHandler) handleApplicationDiffApplySheet(
+	ctx context.Context,
+	b *tgbot.Bot,
+	update *models.Update,
+	eventID string,
+) {
+	data := update.CallbackQuery.Data
+
+	if strings.HasPrefix(data, "skipreason:") {
+		h.handleSkipReason(ctx, b, update)
+		return
+	}
+
+	dataParts := strings.Split(data, ":")
+	if len(dataParts) < 3 {
+		h.logger.Error("invalid callback data format", slog.String("data", data))
+		return
+	}
+
+	msg := update.CallbackQuery.Message
+	callbackMessage := msg.Message
+	if callbackMessage == nil {
+		h.logger.Error("[handleApplicationDiffApplySheet] callback message is nil", slog.String("event_id", eventID))
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
+	cacheKey := fmt.Sprintf("%s:%s", enums.CallbackPrefixApplicationDiff, eventID)
+	cachePayload, ok, err := h.redisClient.Get(ctx, cacheKey)
+	if err != nil {
+		h.notifyInternalError(ctx, b, update)
+		h.logger.Error("[handleApplicationDiffApplySheet] failed to get cached payload from redis", "err", err)
+		return
+	}
+	if !ok {
+		h.notifyInternalError(ctx, b, update)
+		h.logger.Error("[handleApplicationDiffApplySheet] no data found cached in redis", slog.String("cacheKey", cacheKey))
+		return
+	}
+	var appSync dto.ApplicationSync
+	if err := json.Unmarshal([]byte(cachePayload), &appSync); err != nil {
+		h.logger.Error("[handleApplicationDiffApplySheet] failed to decode payload", "err", err)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
+	updateDirection := enums.UpdateDirectionInternal
+
+	if _, err := b.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
+		CallbackQueryID: update.CallbackQuery.ID,
+		Text:            applyPopUpMessage,
+		ShowAlert:       false,
+	}); err != nil {
+		h.logger.Error("[handleApplicationDiffApplySheet] failed to answer callback query", "err", err)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
+	gsaRequestPayload := &messages.DiffUpdatePayload{
+		ApplicationRowID: appSync.RowID,
+		UpdateDirection:  updateDirection,
+	}
+	gsaRequestPayloadByte, err := json.Marshal(gsaRequestPayload)
+	if err != nil {
+		h.logger.Error("[handleApplicationDiffApplySheet] failed to marshal payload", "err", err, "payload", gsaRequestPayload)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		gsaDiffUpdateEndpoint,
+		bytes.NewReader(gsaRequestPayloadByte),
+	)
+	if err != nil {
+		h.logger.Error("[handleApplicationDiffApplySheet] failed to create request", "err", err)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Version", "1")
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		h.logger.Error("[handleApplicationDiffApplySheet] request failed", "err", err)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		h.logger.Error("[handleApplicationDiffApplySheet] unexpected status",
+			slog.Int("status", resp.StatusCode),
+			slog.String("body", string(body)),
+		)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
+	if _, err = h.redisClient.Delete(ctx, cacheKey); err != nil {
+		h.logger.Error("[handleApplicationDiffApplySheet] failed to delete entry from redis", "err", err)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
+	if err = h.removeInlineKeyboard(ctx, b, callbackMessage); err != nil {
+		h.logger.Error("[handleApplicationDiffApplySheet] failed to remove inline keyboard", "err", err)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
+	if err = h.appendLineToMessage(ctx, b, applySuccessMessage, callbackMessage); err != nil {
+		h.logger.Error("[handleApplicationDiffApplySheet] failed to append success message", "err", err)
+		h.notifyInternalError(ctx, b, update)
+		return
+	}
+}
+
+func (h *TelegramBotHandler) handleApplicationDiffApplyInternal(
+	ctx context.Context,
+	b *tgbot.Bot,
+	update *models.Update,
+	eventID string,
+) {
+	h.logger.Info("application diff apply internal handler is not implemented yet", slog.String("event_id", eventID))
+}
+
+func (h *TelegramBotHandler) handleApplicationDiffSkip(
+	ctx context.Context,
+	b *tgbot.Bot,
+	update *models.Update,
+	eventID string,
+) {
+	h.logger.Info("application diff skip handler is not implemented yet", slog.String("event_id", eventID))
 }
 
 func (h *TelegramBotHandler) handleMappingConfirmation(

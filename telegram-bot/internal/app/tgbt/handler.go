@@ -33,6 +33,8 @@ const (
 	detailsCommingMessage      = "☑️ Details will be sent to you shortly"
 	applicationDiffSkipMessage = "☑️ Skipped"
 
+	GSA_BASE_URL                               = "GSA_BASE_URL"
+	API_VERSION                                = "API_VERSION"
 	KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED = "KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED"
 	KAFKA_TOPIC_FEEDBACK                       = "KAFKA_TOPIC_FEEDBACK"
 	applicationUpdateUnprocessedConfirmKey     = "cnfm_button_pressed"
@@ -40,7 +42,7 @@ const (
 	detailsCacheRefreshTTL     = 31 * 24 * time.Hour
 	skipReasonSelectedCacheTTL = 31 * 24 * time.Hour
 
-	gsaDiffUpdateEndpoint = "http://google-sheets-accessor:8083/api/application/diff/update"
+	gsaDiffUpdateEndpoint = "/api/application/diff/update"
 )
 
 type redisClient interface {
@@ -54,9 +56,11 @@ type kafkaClient interface {
 }
 
 type TelegramBotHandler struct {
-	logger      *slog.Logger
-	redisClient redisClient
-	kafkaClient kafkaClient
+	logger        *slog.Logger
+	redisClient   redisClient
+	kafkaClient   kafkaClient
+	gsaBaseUrl    string
+	gsaAPIVersion string
 }
 
 func NewTelegramBotHandler(
@@ -64,10 +68,21 @@ func NewTelegramBotHandler(
 	redisClient redisClient,
 	kafkaClient kafkaClient,
 ) *TelegramBotHandler {
+	gsaBaseUrl := os.Getenv(GSA_BASE_URL)
+	if gsaBaseUrl == "" {
+		logger.Warn("GSA_BASE_URL is missing value")
+	}
+	apiVersion := os.Getenv(API_VERSION)
+	if apiVersion == "" {
+		logger.Warn("API_VERSION is missing value")
+	}
+
 	return &TelegramBotHandler{
-		logger:      logger,
-		redisClient: redisClient,
-		kafkaClient: kafkaClient,
+		logger:        logger,
+		redisClient:   redisClient,
+		kafkaClient:   kafkaClient,
+		gsaBaseUrl:    gsaBaseUrl,
+		gsaAPIVersion: apiVersion,
 	}
 }
 
@@ -202,10 +217,11 @@ func (h *TelegramBotHandler) handleApplicationDiffApplySheet(
 		return
 	}
 
+	gsaDiffUrl := fmt.Sprintf("%s%s", h.gsaBaseUrl, gsaDiffUpdateEndpoint)
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		gsaDiffUpdateEndpoint,
+		gsaDiffUrl,
 		bytes.NewReader(gsaRequestPayloadByte),
 	)
 	if err != nil {
@@ -214,7 +230,7 @@ func (h *TelegramBotHandler) handleApplicationDiffApplySheet(
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-API-Version", "1")
+	req.Header.Set("X-API-Version", h.gsaAPIVersion)
 
 	client := &http.Client{
 		Timeout: 5 * time.Second,
@@ -322,10 +338,11 @@ func (h *TelegramBotHandler) handleApplicationDiffApplyInternal(
 		return
 	}
 
+	gsaDiffUrl := fmt.Sprintf("%s%s", h.gsaBaseUrl, gsaDiffUpdateEndpoint)
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		gsaDiffUpdateEndpoint,
+		gsaDiffUrl,
 		bytes.NewReader(gsaRequestPayloadByte),
 	)
 	if err != nil {
@@ -334,7 +351,7 @@ func (h *TelegramBotHandler) handleApplicationDiffApplyInternal(
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-API-Version", "1")
+	req.Header.Set("X-API-Version", h.gsaAPIVersion)
 
 	client := &http.Client{
 		Timeout: 5 * time.Second,
@@ -371,16 +388,8 @@ func (h *TelegramBotHandler) handleApplicationDiffApplyInternal(
 	}
 
 	if err = h.appendLineToMessage(ctx, b, sheetUpdateSuccessMessage, callbackMessage); err != nil {
-		h.logger.Error("[handleApplicationDiffApplyInternal] failed to append success message", "err", err)
-
-		if _, sendErr := b.SendMessage(ctx, &tgbot.SendMessageParams{
-			ChatID: callbackMessage.Chat.ID,
-			Text:   sheetUpdateSuccessMessage,
-		}); sendErr != nil {
-			h.logger.Error("[handleApplicationDiffApplyInternal] failed to send fallback success message", "err", sendErr)
-			h.notifyInternalError(ctx, b, update)
-		}
-
+		h.logger.Error("[handleApplicationDiffApplySheet] failed to append success message", "err", err)
+		h.notifyInternalError(ctx, b, update)
 		return
 	}
 }
@@ -420,7 +429,9 @@ func (h *TelegramBotHandler) handleApplicationDiffSkip(
 	}
 
 	if err := h.appendLineToMessage(ctx, b, applicationDiffSkipMessage, callbackMessage); err != nil {
-		h.logger.Error("[handleApplicationDiffSkip] failed to append skip message", "err", err)
+		h.logger.Error("[handleApplicationDiffApplySheet] failed to append skip message", "err", err)
+		h.notifyInternalError(ctx, b, update)
+		return
 	}
 }
 

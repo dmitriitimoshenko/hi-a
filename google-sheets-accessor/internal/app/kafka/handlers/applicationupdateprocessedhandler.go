@@ -31,19 +31,21 @@ func NewApplicationUpdateProcessedHandler(
 func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message kafkaclient.Message) error {
 	var applicationUpdateData *aup.ApplicationUpdatePayload
 	if err := json.Unmarshal(message.Value, &applicationUpdateData); err != nil {
+		h.logger.Error("[ApplicationUpdateProcessedHandler] failed to unmarshal value from Kafka message", "err", err, slog.Any("message.Value", message.Value))
 		return err
 	}
 
 	key := string(message.Key)
 
 	if applicationUpdateData == nil {
+		h.logger.Error("[ApplicationUpdateProcessedHandler] applicationUpdateData is nil", slog.String("kafka_key", key))
 		return errors.New("failed to extract applicationUpdateData from kafka message")
 	}
 
 	dbApplication, err := h.applicationService.FindByID(ctx, applicationUpdateData.MappedApplication.ID)
 	if err != nil {
 		h.logger.Error(
-			"failed to find application by ID",
+			"[ApplicationUpdateProcessedHandler] failed to find application by ID",
 			slog.String("kafka_key", key),
 			slog.Int64("application_id", applicationUpdateData.MappedApplication.ID),
 			slog.String("err", err.Error()),
@@ -57,6 +59,12 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 
 	meta, err := tools.ByteToMapStringString(mappedApplication.Meta)
 	if err != nil {
+		h.logger.Error(
+			"[ApplicationUpdateProcessedHandler] failed to ByteToMapStringString",
+			slog.String("kafka_key", key),
+			slog.Int64("application_id", applicationUpdateData.MappedApplication.ID),
+			slog.String("err", err.Error()),
+		)
 		return fmt.Errorf("failed to ByteToMapStringString: %w", err)
 	}
 
@@ -90,7 +98,7 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 		AppliedAt:      mappedApplication.AppliedAt,
 		RespondedAt:    mappedApplication.RespondedAt,
 		NextFollowUpAt: mappedApplication.NextFollowUpAt,
-		Stage:          mappedApplication.Stage,
+		Stage:          mappedApplication.Stage.Ptr(),
 		Meta:           *meta,
 		SalaryApplied:  updateApplicationSalaryAppliedDTO,
 		SalaryProposed: updateApplicationSalaryProposedDTO,
@@ -99,12 +107,11 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 
 	if err := h.applicationService.UpdateAndSync(ctx, updateApplicationDTO); err != nil {
 		h.logger.Error(
-			"failed to apply application update",
+			"[ApplicationUpdateProcessedHandler] failed to apply application update",
 			slog.String("kafka_key", key),
 			slog.Any("application_update_data", applicationUpdateData),
 			slog.String("err", err.Error()),
 		)
-
 		return fmt.Errorf("failed to apply application update with kafka key [%s]", key)
 	}
 

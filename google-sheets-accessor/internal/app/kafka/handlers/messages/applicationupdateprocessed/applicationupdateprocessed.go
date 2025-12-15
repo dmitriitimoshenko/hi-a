@@ -14,7 +14,7 @@ type ApplicationUpdatePayload struct {
 	Status            string             `json:"status,omitempty"`
 	RespondedAt       *time.Time         `json:"responded_at,omitempty"`
 	NextFollowUpAt    *time.Time         `json:"next_follow_up_at,omitempty"`
-	Stage             *int64             `json:"stage,omitempty"`
+	Stage             NullableInt64      `json:"stage,omitempty"`
 }
 
 type EmailPayload struct {
@@ -61,7 +61,7 @@ type ApplicationPayload struct {
 	AppliedAt      time.Time               `json:"applied_at,omitempty"`
 	RespondedAt    *time.Time              `json:"responded_at,omitempty"`
 	NextFollowUpAt *time.Time              `json:"next_follow_up_at,omitempty"`
-	Stage          *int64                  `json:"stage"`
+	Stage          NullableInt64           `json:"stage"`
 	Meta           json.RawMessage         `json:"meta,omitempty"`
 	Embedding      []float32               `json:"embedding,omitempty"`
 	SalaryApplied  *Salary                 `json:"salary_applied,omitempty"`

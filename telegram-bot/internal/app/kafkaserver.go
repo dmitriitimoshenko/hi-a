@@ -7,6 +7,7 @@ import (
 	"os"
 
 	kafkaclient "github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/kafka"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -43,44 +44,43 @@ func (s *KafkaServer) Run(ctx context.Context) error {
 		os.Getenv("KAFKA_TOPIC_NOTIFICATION_SYNC"): s.notificationSyncHandler.Handle,
 	}
 
+	g, gctx := errgroup.WithContext(ctx)
+
 	for consumeTopic, consumeHandler := range consumeTopicsHandlers {
-		go func(ctx context.Context, consumeTopic string, consumeHandler func(ctx context.Context, message kafkaclient.Message) error) {
+		topic := consumeTopic
+		handler := consumeHandler
+
+		g.Go(func() error {
 			for attempt := 1; attempt <= maxConsumeRetries; attempt++ {
-				err := s.kafka.Consume(ctx, consumeTopic, consumeHandler)
-				if err == nil {
-					s.logger.Info(
-						"consumer started",
-						slog.String("topic", consumeTopic),
-						slog.Int("attempt", attempt),
-						slog.Int("max_attempts", maxConsumeRetries),
-					)
-					return
-				}
+				s.logger.Info("starting consumer", slog.String("topic", topic), slog.Int("attempt", attempt))
 
-				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
-					s.logger.Info("consumer stopped by context", slog.String("topic", consumeTopic), slog.Any("error", err))
+				err := s.kafka.Consume(gctx, topic, handler)
+				if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || gctx.Err() != nil {
+					s.logger.Info("consumer stopped by context", slog.String("topic", topic), slog.Any("error", err))
 
-					return
+					return nil
 				}
 
 				if attempt == maxConsumeRetries {
-					s.logger.Error("consumer stopped after retries", slog.String("topic", consumeTopic), slog.Any("error", err), slog.Int("attempts", attempt))
+					s.logger.Error("consumer stopped after retries", slog.String("topic", topic), slog.Any("error", err), slog.Int("attempts", attempt))
 
-					return
+					return err
 				}
 
 				s.logger.Error(
 					"consumer failed, retrying",
-					slog.String("topic", consumeTopic),
+					slog.String("topic", topic),
 					slog.Any("error", err),
 					slog.Int("attempt", attempt),
 					slog.Int("max_attempts", maxConsumeRetries),
 				)
 			}
-		}(ctx, consumeTopic, consumeHandler)
+
+			return nil
+		})
 	}
 
-	return nil
+	return g.Wait()
 }
 
 func (s *KafkaServer) Close(ctx context.Context) error {

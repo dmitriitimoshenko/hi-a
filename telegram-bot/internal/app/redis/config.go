@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	defaultHost = "redis-google-sheets-accessor"
+	defaultHost = "redis-telegram-bot"
 	defaultPort = 6379
 	defaultDB   = 0
 )

@@ -55,17 +55,11 @@ type ApplicationPayload struct {
 	RowID          int64                   `json:"row_id"`
 	Company        string                  `json:"company"`
 	Title          string                  `json:"title"`
-	EmploymentType enums.EmploymentType    `json:"employment_type"`
-	WorkMode       enums.WorkMode          `json:"work_mode"`
 	Status         enums.ApplicationStatus `json:"status"`
-	AppliedAt      time.Time               `json:"applied_at,omitempty"`
 	RespondedAt    *time.Time              `json:"responded_at,omitempty"`
 	NextFollowUpAt *time.Time              `json:"next_follow_up_at,omitempty"`
 	Stage          NullableInt64           `json:"stage"`
-	Meta           json.RawMessage         `json:"meta,omitempty"`
 	Embedding      []float32               `json:"embedding,omitempty"`
-	SalaryApplied  *Salary                 `json:"salary_applied,omitempty"`
-	SalaryProposed *Salary                 `json:"salary_proposed,omitempty"`
 }
 
 type Salary struct {

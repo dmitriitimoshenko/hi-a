@@ -54,19 +54,19 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 	}
 
 	mappedApplication := applicationUpdateData.MappedApplication
-	mappedApplicationSalaryApplied := mappedApplication.SalaryApplied
-	mappedApplicationSalaryProposed := mappedApplication.SalaryProposed
+	mappedApplicationSalaryApplied := dbApplication.SalaryApplied
+	mappedApplicationSalaryProposed := dbApplication.SalaryProposed
 
-	meta, err := tools.ByteToMapStringString(mappedApplication.Meta)
-	if err != nil {
-		h.logger.Error(
-			"[ApplicationUpdateProcessedHandler] failed to ByteToMapStringString",
-			slog.String("kafka_key", key),
-			slog.Int64("application_id", applicationUpdateData.MappedApplication.ID),
-			slog.String("err", err.Error()),
-		)
-		return fmt.Errorf("failed to ByteToMapStringString: %w", err)
-	}
+	// meta, err := tools.ByteToMapStringString(mappedApplication.Meta)
+	// if err != nil {
+	// 	h.logger.Error(
+	// 		"[ApplicationUpdateProcessedHandler] failed to ByteToMapStringString",
+	// 		slog.String("kafka_key", key),
+	// 		slog.Int64("application_id", applicationUpdateData.MappedApplication.ID),
+	// 		slog.String("err", err.Error()),
+	// 	)
+	// 	return fmt.Errorf("failed to ByteToMapStringString: %w", err)
+	// }
 
 	var updateApplicationSalaryAppliedDTO, updateApplicationSalaryProposedDTO *dto.UpdateApplicationSalaryDTO
 	if mappedApplicationSalaryApplied != nil {
@@ -92,14 +92,14 @@ func (h *ApplicationUpdateProcessedHandler) Handle(ctx context.Context, message 
 		RowID:          mappedApplication.RowID,
 		Company:        mappedApplication.Company,
 		Title:          mappedApplication.Title,
-		EmploymentType: mappedApplication.EmploymentType,
-		WorkMode:       mappedApplication.WorkMode,
+		EmploymentType: dbApplication.EmploymentType,
+		WorkMode:       dbApplication.WorkMode,
 		Status:         mappedApplication.Status,
-		AppliedAt:      mappedApplication.AppliedAt,
+		AppliedAt:      dbApplication.AppliedAt,
 		RespondedAt:    mappedApplication.RespondedAt,
 		NextFollowUpAt: mappedApplication.NextFollowUpAt,
 		Stage:          mappedApplication.Stage.Ptr(),
-		Meta:           *meta,
+		Meta:           tools.FromJSONMap(dbApplication.Meta),
 		SalaryApplied:  updateApplicationSalaryAppliedDTO,
 		SalaryProposed: updateApplicationSalaryProposedDTO,
 		Embedding:      tools.EmbeddingToSlice(dbApplication.Embedding),

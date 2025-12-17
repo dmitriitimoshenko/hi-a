@@ -160,6 +160,11 @@ func (h *TelegramBotHandler) handleApplicationDiffApplySheet(
 	update *models.Update,
 	eventID string,
 ) {
+	h.logButtonPress("[handleApplicationDiffApplySheet] apply sheet button pressed",
+		update,
+		slog.String("event_id", eventID),
+	)
+
 	data := update.CallbackQuery.Data
 
 	dataParts := strings.Split(data, ":")
@@ -279,6 +284,11 @@ func (h *TelegramBotHandler) handleApplicationDiffApplyInternal(
 	update *models.Update,
 	eventID string,
 ) {
+	h.logButtonPress("[handleApplicationDiffApplyInternal] apply internal button pressed",
+		update,
+		slog.String("event_id", eventID),
+	)
+
 	data := update.CallbackQuery.Data
 
 	dataParts := strings.Split(data, ":")
@@ -400,6 +410,11 @@ func (h *TelegramBotHandler) handleApplicationDiffSkip(
 	update *models.Update,
 	eventID string,
 ) {
+	h.logButtonPress("[handleApplicationDiffSkip] skip button pressed",
+		update,
+		slog.String("event_id", eventID),
+	)
+
 	callbackMessage := update.CallbackQuery.Message.Message
 	if callbackMessage == nil {
 		h.logger.Error("[handleApplicationDiffSkip] callback message is nil", slog.String("event_id", eventID))
@@ -442,6 +457,12 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 	emailLabel enums.EmailLabel,
 	emailID string,
 ) {
+	h.logButtonPress("[handleMappingConfirmation] confirm button pressed",
+		update,
+		slog.String("label", string(emailLabel)),
+		slog.String("email_id", emailID),
+	)
+
 	if emailID == "" {
 		h.notifyInternalError(ctx, b, update)
 		h.logger.Error("[handleMappingConfirmation] emailID is empty", "label", emailLabel)
@@ -556,6 +577,12 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 }
 
 func (h *TelegramBotHandler) handleMappingDetails(ctx context.Context, b *tgbot.Bot, update *models.Update, emailLabel enums.EmailLabel, emailID string) {
+	h.logButtonPress("[handleMappingDetails] details button pressed",
+		update,
+		slog.String("label", string(emailLabel)),
+		slog.String("email_id", emailID),
+	)
+
 	if emailID == "" {
 		h.notifyInternalError(ctx, b, update)
 		h.logger.Error("[handleMappingDetails] emailID is empty", "label", emailLabel)
@@ -641,6 +668,12 @@ func (h *TelegramBotHandler) handleMappingDetails(ctx context.Context, b *tgbot.
 }
 
 func (h *TelegramBotHandler) handleMappingSkip(ctx context.Context, b *tgbot.Bot, update *models.Update, emailLabel enums.EmailLabel, emailID string) {
+	h.logButtonPress("[handleMappingSkip] skip button pressed",
+		update,
+		slog.String("label", string(emailLabel)),
+		slog.String("email_id", emailID),
+	)
+
 	if emailID == "" {
 		h.notifyInternalError(ctx, b, update)
 		h.logger.Error("[handleMappingSkip] emailID is empty", "label", emailLabel)
@@ -713,6 +746,12 @@ func (h *TelegramBotHandler) handleSkipReason(ctx context.Context, b *tgbot.Bot,
 
 	skipReasonStr := enums.MappingSkipOption(dataParts[1])
 	emailID := dataParts[2]
+
+	h.logButtonPress("[handleSkipReason] skip reason button pressed",
+		update,
+		slog.String("skip_reason", string(skipReasonStr)),
+		slog.String("email_id", emailID),
+	)
 
 	if !skipReasonStr.IsValid() {
 		h.logger.Error("[handleSkipReason] invalid skip reason", "skipReason", skipReasonStr)
@@ -933,4 +972,22 @@ func (h *TelegramBotHandler) refreshDetailsCache(ctx context.Context, key string
 	}
 
 	return nil
+}
+
+func (h *TelegramBotHandler) logButtonPress(message string, update *models.Update, attrs ...any) {
+	if update == nil || update.CallbackQuery == nil {
+		h.logger.Info(message, attrs...)
+		return
+	}
+
+	user := update.CallbackQuery.From
+
+	buttonPressAttrs := []any{
+		slog.String("callback_data", update.CallbackQuery.Data),
+		slog.Int64("user_id", user.ID),
+		slog.String("username", user.Username),
+	}
+	buttonPressAttrs = append(buttonPressAttrs, attrs...)
+
+	h.logger.Info(message, buttonPressAttrs...)
 }

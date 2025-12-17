@@ -552,7 +552,8 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 		return
 	}
 
-	replyMessage := callbackMessage.ReplyToMessage
+	// replyMessage := callbackMessage.ReplyToMessage
+	replyMessage := callbackMessage // testing
 	if err = h.appendLineToMessage(ctx, b, confirmMessage, replyMessage); err != nil {
 		h.logger.Error("[handleMappingConfirmation] failed to append line to message", "err", err)
 		h.notifyInternalError(ctx, b, update)

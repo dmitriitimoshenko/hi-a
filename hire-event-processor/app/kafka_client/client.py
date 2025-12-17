@@ -76,6 +76,10 @@ class KafkaClient:
 
             return result
 
+        if isinstance(obj, bytes):
+            decoded_obj = obj.decode("utf-8")
+            obj = decoded_obj
+
         serialized = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         result = (serialized, "application/json")
 

@@ -979,12 +979,8 @@ func (h *TelegramBotHandler) logButtonPress(message string, update *models.Updat
 		return
 	}
 
-	user := update.CallbackQuery.From
-
 	buttonPressAttrs := []any{
 		slog.String("callback_data", update.CallbackQuery.Data),
-		slog.Int64("user_id", user.ID),
-		slog.String("username", user.Username),
 	}
 	buttonPressAttrs = append(buttonPressAttrs, attrs...)
 

@@ -463,11 +463,15 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 		slog.String("email_id", emailID),
 	)
 
+	h.logger.Info("0")
+
 	if emailID == "" {
 		h.notifyInternalError(ctx, b, update)
 		h.logger.Error("[handleMappingConfirmation] emailID is empty", "label", emailLabel)
 		return
 	}
+
+	h.logger.Info("1")
 
 	callbackMessage := update.CallbackQuery.Message.Message
 	if callbackMessage == nil {
@@ -476,6 +480,8 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 		return
 	}
 
+	h.logger.Info("2")
+
 	cacheKey := fmt.Sprintf("%s:%s", "notification", emailID)
 	val, ok, err := h.redisClient.Get(ctx, cacheKey)
 	if err != nil {
@@ -483,7 +489,11 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 		h.logger.Error("[handleMappingConfirmation] failed to get from redis", "err", err)
 		return
 	}
+
+	h.logger.Info("3")
+
 	if !ok {
+		h.logger.Info("4")
 		ok, err = b.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
 			CallbackQueryID: update.CallbackQuery.ID,
 			Text:            detailsMissingMessage,
@@ -494,13 +504,18 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 			h.notifyInternalError(ctx, b, update)
 			return
 		}
+
+		h.logger.Info("5")
 		if !ok {
 			h.logger.Error("[handleMappingConfirmation] failed to answer callback query: not ok")
 			h.notifyInternalError(ctx, b, update)
 			return
 		}
+
+		h.logger.Info("6")
 	}
 
+	h.logger.Info("7")
 	ok, err = b.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
 		CallbackQueryID: update.CallbackQuery.ID,
 		Text:            confirmPopUpMessage,
@@ -511,11 +526,15 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
+
+	h.logger.Info("8")
 	if !ok {
 		h.logger.Error("[handleMappingConfirmation] failed to answer callback query: not ok")
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
+
+	h.logger.Info("9")
 
 	var payload kafkamessages.NotificationMessage
 	if err = json.Unmarshal([]byte(val), &payload); err != nil {
@@ -523,6 +542,8 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
+
+	h.logger.Info("10")
 
 	payload.Action = "cnfm"
 
@@ -533,6 +554,8 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 		return
 	}
 
+	h.logger.Info("11")
+
 	topicToPublish := os.Getenv("KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED")
 	if err = h.kafkaClient.Publish(ctx, topicToPublish, []byte(applicationUpdateUnprocessedConfirmKey), confirmPayload); err != nil {
 		h.logger.Error("[handleMappingConfirmation] failed to publish to kafka", "err", err, "label", emailLabel)
@@ -540,11 +563,15 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 		return
 	}
 
+	h.logger.Info("12")
+
 	if _, err = h.redisClient.Delete(ctx, cacheKey); err != nil {
 		h.logger.Error("[handleMappingConfirmation] failed to delete from redis", "err", err)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
+
+	h.logger.Info("13")
 
 	if err = h.removeInlineKeyboard(ctx, b, callbackMessage); err != nil {
 		h.logger.Error("[handleMappingConfirmation] failed to remove inline keyboard", "err", err)
@@ -552,11 +579,15 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 		return
 	}
 
+	h.logger.Info("14")
+
 	if err = h.appendLineToMessage(ctx, b, confirmMessage, callbackMessage); err != nil {
 		h.logger.Error("[handleMappingConfirmation] failed to append line to message", "err", err)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
+
+	h.logger.Info("15")
 
 	ok, err = b.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
 		CallbackQueryID: update.CallbackQuery.ID,
@@ -568,11 +599,15 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
+
+	h.logger.Info("16")
 	if !ok {
 		h.logger.Error("[handleMappingConfirmation] failed to answer callback query: not ok")
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
+
+	h.logger.Info("17")
 }
 
 func (h *TelegramBotHandler) handleMappingDetails(ctx context.Context, b *tgbot.Bot, update *models.Update, emailLabel enums.EmailLabel, emailID string) {

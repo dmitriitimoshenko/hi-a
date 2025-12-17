@@ -83,6 +83,11 @@ func run() error {
 	g.Go(func() error {
 		return kafkaServer.Run(gctx)
 	})
+	g.Go(func() error {
+		b.Start(gctx)
+
+		return nil
+	})
 
 	logger.Info("TB is running...")
 

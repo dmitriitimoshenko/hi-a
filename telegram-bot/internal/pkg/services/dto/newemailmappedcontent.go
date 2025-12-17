@@ -15,15 +15,31 @@ type NewMappedEmailMessageContent struct {
 }
 
 type ApplicationData struct {
-	ID             int64      `json:"id,omitempty"`
-	RowID          int64      `json:"row_id,omitempty"`
-	Title          string     `json:"title,omitempty"`
-	Company        string     `json:"company,omitempty"`
-	Status         string     `json:"status,omitempty"`
-	Stage          *int64     `json:"stage,omitempty"`
-	RespondedAt    *time.Time `json:"responded_at,omitempty"`
-	NextFollowUpAt *time.Time `json:"next_follow_up_at,omitempty"`
-	Embedding      []float32  `json:"embedding,omitempty"` // gonna be only NIL at this point
+	ID             int64                   `json:"id,omitempty"`
+	RowID          int64                   `json:"row_id,omitempty"`
+	Title          string                  `json:"title,omitempty"`
+	Company        string                  `json:"company,omitempty"`
+	EmploymentType enums.EmploymentType    `json:"employment_type"`
+	WorkMode       enums.WorkMode          `json:"work_mode"`
+	Status         enums.ApplicationStatus `json:"status,omitempty"`
+	AppliedAt      time.Time               `json:"applied_at"`
+	Stage          *int64                  `json:"stage,omitempty"`
+	RespondedAt    *time.Time              `json:"responded_at,omitempty"`
+	NextFollowUpAt *time.Time              `json:"next_follow_up_at,omitempty"`
+	Meta           json.RawMessage         `json:"meta,omitempty"`
+	Embedding      []float32               `json:"embedding,omitempty"` // gonna be only NIL at this point
+	SalaryApplied  *SalaryData             `json:"salary_applied,omitempty"`
+	SalaryProposed *SalaryData             `json:"salary_proposed,omitempty"`
+}
+
+type SalaryData struct {
+	ID         int64              `json:"id"`
+	CreatedAt  time.Time          `json:"created_at"`
+	UpdatedAt  time.Time          `json:"updated_at"`
+	AmountFrom *float64           `json:"amount_from,omitempty"`
+	AmountTo   *float64           `json:"amount_to,omitempty"`
+	Currency   string             `json:"currency"`
+	Period     enums.SalaryPeriod `json:"period"`
 }
 
 type EmailPayload struct {

@@ -71,13 +71,13 @@ func (s *ApplicationService) AddEmbeddingByID(ctx context.Context, id int64, emb
 
 func (s *ApplicationService) UpdateAndSync(ctx context.Context, application dto.UpdateApplicationDTO) error {
 	if err := s.Update(ctx, application); err != nil {
-		s.logger.Error("failed to Update application", "err", err)
-		return fmt.Errorf("failed to Update application with DTO: \n%+v", application)
+		s.logger.Error("failed to Update application", slog.Any("dto", application), "err", err)
+		return fmt.Errorf("failed to Update application: %w", err)
 	}
 
 	if err := s.SyncFromDTO(ctx, application); err != nil {
-		s.logger.Error("failed to SyncFromDB application", "err", err)
-		return fmt.Errorf("failed to SyncFromDB application with DTO: \n%+v", application)
+		s.logger.Error("failed to SyncFromDB application", slog.Any("dto", application), "err", err)
+		return fmt.Errorf("failed to SyncFromDB application: %w", err)
 	}
 
 	return nil

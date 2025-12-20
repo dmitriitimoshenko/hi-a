@@ -38,8 +38,14 @@ func run() error {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	applicationsSyncProcessedHandler := handlers.NewApplicationUpdateProcessedHandler(logger)
-	hireEventHandler := handlers.NewHireEventHandler(logger)
+	applicationsSyncProcessedHandler := handlers.NewApplicationUpdateProcessedHandler(
+		logger,
+		kafkaClient,
+	)
+	hireEventHandler := handlers.NewHireEventHandler(
+		logger,
+		kafkaClient,
+	)
 
 	kafkaServer := app.NewKafkaServer(
 		logger,
@@ -61,7 +67,7 @@ func run() error {
 		return httpServer.Run(gctx)
 	})
 
-	logger.Info("GSA is running...")
+	logger.Info("HEN is running...")
 
 	return g.Wait()
 }

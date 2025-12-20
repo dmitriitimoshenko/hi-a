@@ -6,8 +6,7 @@ import (
 	"log/slog"
 	"os"
 
-	kafkaclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
-	sheetsclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/sheets"
+	kafkaclient "github.com/dmitriitimoshenko/hi-a/hire-event-notifier/internal/app/kafka"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -19,33 +18,30 @@ const (
 )
 
 type KafkaServer struct {
-	kafka                             *kafkaclient.Client
-	sheets                            *sheetsclient.Client
-	logger                            *slog.Logger
-	applicationUpdateProcessedHandler applicationUpdateProcessedHandler
-	saveApplicationEmbeddingHandler   saveApplicationEmbeddingHandler
+	logger                          *slog.Logger
+	kafka                           *kafkaclient.Client
+	hireEventHandler                hireEventHandler
+	applicationSyncProcessedHandler applicationSyncProcessedHandler
 }
 
 func NewKafkaServer(
-	kafkaClient *kafkaclient.Client,
-	sheetsClient *sheetsclient.Client,
 	logger *slog.Logger,
-	applicationUpdateProcessedHandler applicationUpdateProcessedHandler,
-	saveApplicationEmbeddingHandler saveApplicationEmbeddingHandler,
+	kafkaClient *kafkaclient.Client,
+	hireEventHandler hireEventHandler,
+	applicationSyncProcessedHandler applicationSyncProcessedHandler,
 ) *KafkaServer {
 	return &KafkaServer{
-		kafka:                             kafkaClient,
-		sheets:                            sheetsClient,
-		logger:                            logger,
-		applicationUpdateProcessedHandler: applicationUpdateProcessedHandler,
-		saveApplicationEmbeddingHandler:   saveApplicationEmbeddingHandler,
+		kafka:                           kafkaClient,
+		logger:                          logger,
+		hireEventHandler:                hireEventHandler,
+		applicationSyncProcessedHandler: applicationSyncProcessedHandler,
 	}
 }
 
 func (s *KafkaServer) Run(ctx context.Context) error {
 	consumeTopicsHandlers := map[string]func(ctx context.Context, message kafkaclient.Message) error{
-		os.Getenv("KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING"):   s.saveApplicationEmbeddingHandler.Handle,
-		os.Getenv("KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED"): s.applicationUpdateProcessedHandler.Handle,
+		os.Getenv("KAFKA_TOPIC_HIRE_EVENT"):                  s.hireEventHandler.Handle,
+		os.Getenv("KAFKA_TOPIC_APPLICATIONS_SYNC_PROCESSED"): s.applicationSyncProcessedHandler.Handle,
 	}
 
 	g, gctx := errgroup.WithContext(ctx)

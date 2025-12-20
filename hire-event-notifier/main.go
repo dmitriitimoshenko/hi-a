@@ -7,9 +7,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app"
-	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
-	kafkaclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
+	"github.com/dmitriitimoshenko/hi-a/hire-event-notifier/internal/app"
+	"github.com/dmitriitimoshenko/hi-a/hire-event-notifier/internal/app/kafka"
+	kafkaclient "github.com/dmitriitimoshenko/hi-a/hire-event-notifier/internal/app/kafka"
+	"github.com/dmitriitimoshenko/hi-a/hire-event-notifier/internal/app/kafka/handlers"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -37,14 +38,17 @@ func run() error {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
+	applicationsSyncProcessedHandler := handlers.NewApplicationUpdateProcessedHandler(logger)
+	hireEventHandler := handlers.NewHireEventHandler(logger)
+
 	kafkaServer := app.NewKafkaServer(
 		logger,
 		kafkaClient,
-		applicationUpdateProcessedHandler,
-		saveApplicationEmbeddingHandler,
+		hireEventHandler,
+		applicationsSyncProcessedHandler,
 	)
 
-	httpServer := app.NewHTTPServer(applicationService, sheetsService, logger)
+	httpServer := app.NewHTTPServer(logger)
 
 	g, gctx := errgroup.WithContext(ctx)
 

@@ -6,14 +6,14 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/gsa ./main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/hep ./main.go
 
 FROM alpine:3.20
 
 RUN adduser -D appuser
 
-COPY --from=builder /bin/gsa /usr/local/bin/gsa
+COPY --from=builder /bin/hep /usr/local/bin/hep
 
 USER appuser
 
-ENTRYPOINT ["/usr/local/bin/gsa"]
+ENTRYPOINT ["/usr/local/bin/hep"]

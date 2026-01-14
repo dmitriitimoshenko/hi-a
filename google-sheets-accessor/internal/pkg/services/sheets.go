@@ -521,7 +521,10 @@ func (s *SheetsService) GetRespondedAt(ctx context.Context, rowID int64) (*time.
 
 func (s *SheetsService) SetRespondedAt(ctx context.Context, rowID int64, respondedAt *time.Time) error {
 	ceil := "K" + strconv.FormatInt(rowID, 10)
-	respondedAtStr := respondedAt.Format("02/01/2006")
+	respondedAtStr := ""
+	if respondedAt != nil {
+		respondedAtStr = respondedAt.Format("02/01/2006")
+	}
 	if err := s.client.Write(ctx, respondedAtStr, ceil); err != nil {
 		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
 	}
@@ -547,7 +550,10 @@ func (s *SheetsService) GetNextFollowUpAt(ctx context.Context, rowID int64) (*ti
 
 func (s *SheetsService) SetNextFollowUpAt(ctx context.Context, rowID int64, nextFollowUpAt *time.Time) error {
 	ceil := "L" + strconv.FormatInt(rowID, 10)
-	nextFollowUpAtStr := nextFollowUpAt.Format("02/01/2006 15:04:05")
+	nextFollowUpAtStr := ""
+	if nextFollowUpAt != nil {
+		nextFollowUpAtStr = nextFollowUpAt.Format("02/01/2006 15:04:05")
+	}
 	if err := s.client.Write(ctx, nextFollowUpAtStr, ceil); err != nil {
 		return fmt.Errorf("failed to write to Google sheet in range [%s]: %w", ceil, err)
 	}

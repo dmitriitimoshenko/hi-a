@@ -756,9 +756,13 @@ func (h *TelegramBotHandler) handleMappingSkip(ctx context.Context, b *tgbot.Bot
 	}
 
 	if _, err = b.SendMessage(ctx, &tgbot.SendMessageParams{
-		ChatID:      callbackMessage.Chat.ID,
-		Text:        "Please select a reason for skipping the mapping:",
-		ParseMode:   models.ParseModeHTML,
+		ChatID:    callbackMessage.Chat.ID,
+		Text:      "Please select a reason for skipping the mapping:",
+		ParseMode: models.ParseModeHTML,
+		ReplyParameters: &models.ReplyParameters{
+			MessageID:                callbackMessage.ID,
+			AllowSendingWithoutReply: true,
+		},
 		ReplyMarkup: skipKeyboard,
 	}); err != nil {
 		h.logger.Error("[handleMappingSkip] failed to send skip reason message in Telegram", "err", err)
@@ -838,14 +842,24 @@ func (h *TelegramBotHandler) handleSkipReason(ctx context.Context, b *tgbot.Bot,
 	}
 
 	replyMessage := callbackMessage.ReplyToMessage
-	if err = h.appendLineToMessage(ctx, b, fmt.Sprintf("⏭️ Skipped (Reason: %s)", skipReasonStr), replyMessage); err != nil {
-		h.logger.Error("[handleSkipReason] failed to append line to message", "err", err)
-		h.notifyInternalError(ctx, b, update)
-		return
-	}
 	if replyMessage != nil {
+		if err = h.appendLineToMessage(ctx, b, fmt.Sprintf("⏭️ Skipped (Reason: %s)", skipReasonStr), replyMessage); err != nil {
+			h.logger.Error("[handleSkipReason] failed to append line to message", "err", err)
+			h.notifyInternalError(ctx, b, update)
+			return
+		}
 		if err = h.removeInlineKeyboard(ctx, b, replyMessage); err != nil {
 			h.logger.Error("[handleSkipReason] failed to remove inline keyboard from reply message", "err", err)
+			h.notifyInternalError(ctx, b, update)
+			return
+		}
+	} else {
+		if _, err = b.SendMessage(ctx, &tgbot.SendMessageParams{
+			ChatID:    callbackMessage.Chat.ID,
+			Text:      fmt.Sprintf("⏭️ Skipped (Reason: %s)", skipReasonStr),
+			ParseMode: models.ParseModeHTML,
+		}); err != nil {
+			h.logger.Error("[handleSkipReason] failed to send skip reason message", "err", err)
 			h.notifyInternalError(ctx, b, update)
 			return
 		}

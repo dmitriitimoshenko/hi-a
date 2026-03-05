@@ -12,6 +12,8 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
+const kafkaMaxAttempts = 30
+
 type Client struct {
 	config  *Config
 	dialer  *kafka.Dialer
@@ -70,9 +72,10 @@ func (c *Client) getWriter(topic string) (*kafka.Writer, error) {
 	}
 
 	newWriter := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:      []string{c.config.Broker},
+		Brokers:      c.config.Brokers,
 		Topic:        topic,
 		Balancer:     &kafka.LeastBytes{},
+		MaxAttempts:  kafkaMaxAttempts,
 		RequiredAcks: int(kafka.RequireAll),
 		Dialer:       c.dialer,
 	})
@@ -84,12 +87,13 @@ func (c *Client) getWriter(topic string) (*kafka.Writer, error) {
 
 func (c *Client) Consume(ctx context.Context, topic string, handler Handler) error {
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:        []string{c.config.Broker},
+		Brokers:        c.config.Brokers,
 		GroupID:        c.config.GroupID,
 		Topic:          topic,
 		CommitInterval: c.config.CommitInterval,
 		Dialer:         c.dialer,
 		StartOffset:    kafka.LastOffset,
+		MaxAttempts:    kafkaMaxAttempts,
 	})
 
 	defer reader.Close()

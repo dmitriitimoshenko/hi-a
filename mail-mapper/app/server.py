@@ -27,6 +27,8 @@ kafka_topic_feedback = config.KAFKA_TOPIC_FEEDBACK
 
 kafka_client: KafkaClient | None = None
 feedback_handler = None
+kafka_retry_limit = 30
+KAFKA_RETRY_DELAY_SECONDS = 1.0
 
 if kafka_topic_feedback:
     if not config.KAFKA_SERVER:
@@ -44,6 +46,7 @@ if kafka_topic_feedback:
         client_id=config.KAFKA_CLIENT_ID,
         group_id=config.KAFKA_CONSUMER_GROUP,
     )
+    kafka_retry_limit = kafka_config.kafka_retries
 
     kafka_client = KafkaClient(kafka_config)
     feedback_service = get_mail_mapping_feedback_service()
@@ -71,7 +74,7 @@ def _log_feedback_message(
     )
 
 
-def _feedback_consumer_loop() -> None:
+def _consume_feedback_messages() -> None:
     if kafka_client is None or feedback_handler is None:
         logger.info("Feedback consumer loop skipped because Kafka is not configured")
 
@@ -83,52 +86,85 @@ def _feedback_consumer_loop() -> None:
 
         return
 
-    try:
-        kafka_client.subscribe([topic])
-        logger.info("Kafka subscribed to feedback topic: %s", topic)
+    kafka_client.subscribe([topic])
+    logger.info("Kafka subscribed to feedback topic: %s", topic)
 
-        metadata = kafka_client.list_topics(timeout=10.0)
-        if topic not in metadata.topics:
+    metadata = kafka_client.list_topics(timeout=10.0)
+    if topic not in metadata.topics:
+        logger.error(
+            "Topic '%s' not found. Available topics: %s",
+            topic,
+            list(metadata.topics.keys()),
+        )
+    else:
+        topic_metadata = metadata.topics[topic]
+        if topic_metadata.error is not None:
             logger.error(
-                "Topic '%s' not found. Available topics: %s",
+                "Topic '%s' metadata error: %s",
                 topic,
-                list(metadata.topics.keys()),
+                topic_metadata.error,
             )
         else:
-            topic_metadata = metadata.topics[topic]
-            if topic_metadata.error is not None:
-                logger.error(
-                    "Topic '%s' metadata error: %s",
-                    topic,
-                    topic_metadata.error,
-                )
+            partitions = sorted(p.id for p in topic_metadata.partitions.values())
+            logger.info("Topic '%s' partitions: %s", topic, partitions)
+
+    while not _stop_event.is_set():
+        item = kafka_client.poll_once(timeout=1.0)
+        if not item:
+            continue
+
+        key, value, _headers, msg = item
+        _log_feedback_message(key, value, msg)
+
+        try:
+            if isinstance(value, dict):
+                feedback_handler.handle(value)
             else:
-                partitions = sorted(p.id for p in topic_metadata.partitions.values())
-                logger.info("Topic '%s' partitions: %s", topic, partitions)
+                logger.error(
+                    "Feedback message payload is not a dict: %s",
+                    type(value).__name__,
+                )
+        except Exception:
+            logger.exception("Feedback handler raised an exception")
 
-        while not _stop_event.is_set():
-            item = kafka_client.poll_once(timeout=1.0)
-            if not item:
-                continue
 
-            key, value, _headers, msg = item
-            _log_feedback_message(key, value, msg)
+def _feedback_consumer_loop() -> None:
+    for attempt in range(1, kafka_retry_limit + 1):
+        if _stop_event.is_set():
+            return
 
-            try:
-                if isinstance(value, dict):
-                    feedback_handler.handle(value)
-                else:
-                    logger.error(
-                        "Feedback message payload is not a dict: %s",
-                        type(value).__name__,
-                    )
-            except Exception:
-                logger.exception("Feedback handler raised an exception")
-    except Exception:
-        logger.exception("Feedback consumer loop crashed")
-    finally:
-        kafka_client.close_consumer()
-        logger.info("Feedback consumer loop stopped")
+        try:
+            logger.info(
+                "Starting feedback consumer attempt %s/%s",
+                attempt,
+                kafka_retry_limit,
+            )
+            _consume_feedback_messages()
+
+            return
+        except Exception as e:
+            logger.exception(
+                "Feedback consumer loop crashed on attempt %s/%s: %s",
+                attempt,
+                kafka_retry_limit,
+                e,
+            )
+        finally:
+            if kafka_client is not None:
+                kafka_client.close_consumer()
+
+            logger.info("Feedback consumer loop stopped")
+
+        if attempt == kafka_retry_limit:
+            logger.error(
+                "Feedback consumer stopped after %s attempts",
+                kafka_retry_limit,
+            )
+
+            return
+
+        if _stop_event.wait(KAFKA_RETRY_DELAY_SECONDS):
+            return
 
 
 def start_consumer_thread() -> None:

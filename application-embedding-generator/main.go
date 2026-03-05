@@ -19,6 +19,8 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
+const kafkaMaxAttempts = 30
+
 type config struct {
 	KafkaBrokers          []string
 	KafkaClientID         string
@@ -190,6 +192,7 @@ func newEmbeddingGenerator(cfg config, logger *log.Logger) *embeddingGenerator {
 		MinBytes:    cfg.ConsumerMinBytes,
 		MaxBytes:    cfg.ConsumerMaxBytes,
 		MaxWait:     cfg.ConsumerMaxWait,
+		MaxAttempts: kafkaMaxAttempts,
 		StartOffset: kafka.FirstOffset,
 		Logger:      kafka.LoggerFunc(func(msg string, args ...interface{}) {}),
 		ErrorLogger: kafka.LoggerFunc(func(msg string, args ...interface{}) {
@@ -205,6 +208,7 @@ func newEmbeddingGenerator(cfg config, logger *log.Logger) *embeddingGenerator {
 		BatchSize:              cfg.ProducerBatchSize,
 		BatchBytes:             int64(cfg.ProducerBatchBytes),
 		BatchTimeout:           cfg.ProducerBatchTimeout,
+		MaxAttempts:            kafkaMaxAttempts,
 		Logger:                 kafka.LoggerFunc(func(msg string, args ...interface{}) {}),
 		ErrorLogger: kafka.LoggerFunc(func(msg string, args ...interface{}) {
 			logger.Printf("kafka writer error: "+msg, args...)

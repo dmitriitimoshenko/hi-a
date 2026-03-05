@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	maxConsumeRetries = 5
+	maxConsumeRetries = 30
 
 	KAFKA_TOPIC_HIRE_EVENT                  = "KAFKA_TOPIC_HIRE_EVENT"
 	KAFKA_TOPIC_APPLICATIONS_SYNC_PROCESSED = "KAFKA_TOPIC_APPLICATIONS_SYNC_PROCESSED"

@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	maxConsumeRetries = 5
+	maxConsumeRetries = 30
 
 	KAFKA_TOPIC_NOTIFICATION      = "KAFKA_TOPIC_NOTIFICATION"
 	KAFKA_TOPIC_NOTIFICATION_SYNC = "KAFKA_TOPIC_NOTIFICATION_SYNC"

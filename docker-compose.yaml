@@ -1,14 +1,14 @@
 services:
-  kafka:
+  kafka-1:
     image: apache/kafka:4.0.1
     restart: unless-stopped
     environment:
       - KAFKA_ENABLE_KRAFT=yes
       - KAFKA_PROCESS_ROLES=broker,controller
       - KAFKA_NODE_ID=1
-      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093
       - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-1:9092
       - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
@@ -20,13 +20,14 @@ services:
       - KAFKA_LOG_CLEANUP_POLICY=delete
       - KAFKA_LOG_SEGMENT_BYTES=67108864
       - KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS=12
-      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=2
       - KAFKA_OFFSETS_TOPIC_SEGMENT_BYTES=33554432
       - KAFKA_METADATA_LOG_RETENTION_BYTES=134217728
       - KAFKA_METADATA_LOG_MAX_RECORD_BYTES_BETWEEN_SNAPSHOTS=5242880
       - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
-      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
-      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+      - KAFKA_DEFAULT_REPLICATION_FACTOR=2
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=2
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
     ports:
       - "9092:9092"
     volumes:
@@ -38,14 +39,59 @@ services:
       timeout: 10s
       retries: 20
 
+  kafka-2:
+    image: apache/kafka:4.0.1
+    restart: unless-stopped
+    environment:
+      - KAFKA_ENABLE_KRAFT=yes
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_NODE_ID=2
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-2:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_LOG_DIRS=/var/lib/kafka/data
+
+      - KAFKA_LOG_RETENTION_MS=172800000      # 2 days
+      - KAFKA_LOG_RETENTION_BYTES=2147483648  # 2GB
+      - KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS=60000
+      - KAFKA_LOG_CLEANUP_POLICY=delete
+      - KAFKA_LOG_SEGMENT_BYTES=67108864
+      - KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS=12
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=2
+      - KAFKA_OFFSETS_TOPIC_SEGMENT_BYTES=33554432
+      - KAFKA_METADATA_LOG_RETENTION_BYTES=134217728
+      - KAFKA_METADATA_LOG_MAX_RECORD_BYTES_BETWEEN_SNAPSHOTS=5242880
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
+      - KAFKA_DEFAULT_REPLICATION_FACTOR=2
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=2
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
+    ports:
+      - "9094:9092"
+    volumes:
+      - kafka_2_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-cluster.sh cluster-id --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      start_period: 20s
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
   kafka-init:
     image: apache/kafka:4.0.1
     depends_on:
-      kafka:
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
         condition: service_healthy
     restart: "no"
     volumes:
       - ./scripts/create-topics.sh:/usr/local/bin/create-topics.sh:ro
+    environment:
+      - KAFKA_BOOTSTRAP_SERVER=kafka-1:9092
+      - KAFKA_TOPIC_REPLICATION_FACTOR=2
     entrypoint: ["/bin/bash","-lc","/usr/local/bin/create-topics.sh"]
 
   mail-processor:
@@ -53,7 +99,7 @@ services:
     image: hire_insight_ai_assistant_mail_processor:latest
     restart: unless-stopped
     depends_on:
-      kafka:
+      kafka-1:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
@@ -65,7 +111,7 @@ services:
         condition: service_healthy
     environment:
       - PORT=8081
-      - KAFKA_SERVER=kafka:9092
+      - KAFKA_SERVER=kafka-1:9092,kafka-2:9092
       - KAFKA_TOPIC_NEW_MAIL=new-mail
       - KAFKA_TOPIC_INTERESTING_MAIL=interesting-mail
       - KAFKA_CLIENT_ID=mail-processor
@@ -92,7 +138,7 @@ services:
     image: hire_insight_ai_assistant_mail_mapper:latest
     restart: unless-stopped
     depends_on:
-      kafka:
+      kafka-1:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
@@ -104,7 +150,7 @@ services:
       - HUNGARIAN_MIN_MATCH_SCORE=${HUNGARIAN_MIN_MATCH_SCORE}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DATABASE_MAIL_MAPPER_URL=${DATABASE_MAIL_MAPPER_URL}
-      - KAFKA_SERVER=kafka:9092
+      - KAFKA_SERVER=kafka-1:9092,kafka-2:9092
       - KAFKA_CLIENT_ID=mail-mapper
       - KAFKA_CONSUMER_GROUP=mail-mapper
       - KAFKA_TOPIC_FEEDBACK=feedback
@@ -158,7 +204,7 @@ services:
     image: hire_insight_ai_assistant_mail_tracker:latest
     restart: unless-stopped
     depends_on:
-      kafka:
+      kafka-1:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
@@ -166,7 +212,7 @@ services:
         condition: service_healthy
     environment:
       - PORT=8082
-      - KAFKA_SERVER=kafka:9092
+      - KAFKA_SERVER=kafka-1:9092,kafka-2:9092
       - KAFKA_CLIENT_ID=mail-tracker
       - KAFKA_TOPIC_NEW_MAIL=new-mail
       - GMAIL_USER=${GMAIL_USER}
@@ -203,7 +249,7 @@ services:
     depends_on:
       postgres-google-sheets-accessor:
         condition: service_healthy
-      kafka:
+      kafka-1:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
@@ -217,7 +263,7 @@ services:
       - GSA_DB_NAME=${GSA_DB_NAME}
       - GSA_DB_SSLMODE=${GSA_DB_SSLMODE}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - KAFKA_SERVER=kafka:9092
+      - KAFKA_SERVER=kafka-1:9092,kafka-2:9092
       - KAFKA_CLIENT_ID=google-sheets-accessor
       - KAFKA_CONSUMER_GROUP=google-sheets-accessor
       - KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED=application-update-processed
@@ -240,12 +286,12 @@ services:
     image: hire_insight_ai_assistant_application_embedding_generator:latest
     restart: unless-stopped
     depends_on:
-      kafka:
+      kafka-1:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
     environment:
-      - KAFKA_SERVER=kafka:9092
+      - KAFKA_SERVER=kafka-1:9092,kafka-2:9092
       - KAFKA_CLIENT_ID=application-embedding-generator
       - KAFKA_CONSUMER_GROUP=application-embedding-generator
       - KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING=add-embedding-for-application
@@ -283,7 +329,7 @@ services:
     image: hire_insight_ai_assistant_hire_event_processor:latest
     restart: unless-stopped
     depends_on:
-      kafka:
+      kafka-1:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
@@ -293,7 +339,7 @@ services:
         condition: service_healthy
     environment:
       - PORT=8085
-      - KAFKA_SERVER=kafka:9092
+      - KAFKA_SERVER=kafka-1:9092,kafka-2:9092
       - KAFKA_TOPIC_INTERESTING_MAIL=interesting-mail
       - KAFKA_TOPIC_HIRE_EVENT=hire-event
       - KAFKA_TOPIC_APPLICATIONS_SYNC_UNPROCESSED=applications-sync-unprocessed
@@ -320,7 +366,7 @@ services:
     image: hire_insight_ai_assistant_hire_event_notifier:latest
     restart: unless-stopped
     depends_on:
-      kafka:
+      kafka-1:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
@@ -328,7 +374,7 @@ services:
         condition: service_healthy
     environment:
       - PORT=8086
-      - KAFKA_SERVER=kafka:9092
+      - KAFKA_SERVER=kafka-1:9092,kafka-2:9092
       - KAFKA_TOPIC_NOTIFICATION=notification
       - KAFKA_TOPIC_NOTIFICATION_SYNC=notification-sync
       - KAFKA_TOPIC_HIRE_EVENT=hire-event
@@ -349,7 +395,7 @@ services:
     image: hire_insight_ai_assistant_telegram_bot:latest
     restart: unless-stopped
     depends_on:
-      kafka:
+      kafka-1:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
@@ -359,7 +405,7 @@ services:
         condition: service_healthy
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
-      - KAFKA_SERVER=kafka:9092
+      - KAFKA_SERVER=kafka-1:9092,kafka-2:9092
       - KAFKA_CLIENT_ID=telegram-bot
       - KAFKA_CONSUMER_GROUP=telegram-bot-group
       - KAFKA_TOPIC_NOTIFICATION=notification
@@ -390,7 +436,7 @@ services:
     build: ./jobs-master
     image: hire_insight_ai_assistant_jobs_master:latest
     depends_on:
-      kafka:
+      kafka-1:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
@@ -401,7 +447,7 @@ services:
     environment:
       - PORT=8084
       - SHEET_ID=${SHEET_ID}
-      - KAFKA_SERVER=kafka:9092
+      - KAFKA_SERVER=kafka-1:9092,kafka-2:9092
       - KAFKA_CLIENT_ID=jobs-master
       - KAFKA_TOPIC_APPLICATIONS_SYNC=applications-sync-unprocessed
       - GSA_BASE_URL=http://google-sheets-accessor:8083
@@ -449,6 +495,7 @@ services:
 
 volumes:
   kafka_data:
+  kafka_2_data:
   redis_mail_tracker_data:
   redis_google_sheets_accessor:
   redis_telegram_bot:

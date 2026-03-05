@@ -6,9 +6,11 @@ from typing import Any
 class KafkaConfig:
     bootstrap_servers: str
     client_id: str
+    kafka_retries: int = 30
 
     def producer_conf_as_dict(self) -> dict[str, Any]:
         return {
             "bootstrap.servers": self.bootstrap_servers,
             "client.id": self.client_id,
+            "message.send.max.retries": self.kafka_retries,
         }

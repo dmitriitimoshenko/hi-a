@@ -3,11 +3,12 @@ package kafka
 import (
 	"errors"
 	"os"
+	"strings"
 	"time"
 )
 
 type Config struct {
-	Broker         string
+	Brokers        []string
 	GroupID        string
 	ClientID       string
 	DialTimeout    time.Duration
@@ -20,6 +21,21 @@ func LoadConfig() (*Config, error) {
 		return nil, errors.New("KAFKA_SERVER is required")
 	}
 
+	var brokers []string
+
+	for _, broker := range strings.Split(kafkaServer, ",") {
+		trimmedBroker := strings.TrimSpace(broker)
+		if trimmedBroker == "" {
+			continue
+		}
+
+		brokers = append(brokers, trimmedBroker)
+	}
+
+	if len(brokers) == 0 {
+		return nil, errors.New("KAFKA_SERVER must include at least one broker")
+	}
+
 	groupID := os.Getenv("KAFKA_CONSUMER_GROUP")
 	clientID := os.Getenv("KAFKA_CLIENT_ID")
 
@@ -27,7 +43,7 @@ func LoadConfig() (*Config, error) {
 	commitInterval := 2 * time.Second
 
 	kafkaConfig := Config{
-		Broker:         kafkaServer,
+		Brokers:        brokers,
 		GroupID:        groupID,
 		ClientID:       clientID,
 		DialTimeout:    dialTimeout,

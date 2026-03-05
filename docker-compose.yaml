@@ -1,6 +1,7 @@
 services:
   kafka:
     image: apache/kafka:4.0.1
+    restart: unless-stopped
     environment:
       - KAFKA_ENABLE_KRAFT=yes
       - KAFKA_PROCESS_ROLES=broker,controller
@@ -50,9 +51,12 @@ services:
   mail-processor:
     build: ./mail-processor
     image: hire_insight_ai_assistant_mail_processor:latest
+    restart: unless-stopped
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       mail-tracker:
         condition: service_healthy
       postgres-mail-processor:
@@ -86,7 +90,12 @@ services:
   mail-mapper:
     build: ./mail-mapper
     image: hire_insight_ai_assistant_mail_mapper:latest
+    restart: unless-stopped
     depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       postgres-mail-mapper:
         condition: service_healthy
     environment:
@@ -110,6 +119,7 @@ services:
 
   postgres-mail-processor:
     image: pgvector/pgvector:pg17
+    restart: unless-stopped
     environment:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password
@@ -119,7 +129,7 @@ services:
     volumes:
       - postgres_mail_processor_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready", "-d", "postgres"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d postgres"]
       start_period: 5s
       interval: 30s
       timeout: 3s
@@ -127,6 +137,7 @@ services:
 
   postgres-mail-mapper:
     image: pgvector/pgvector:pg17
+    restart: unless-stopped
     environment:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password
@@ -136,7 +147,7 @@ services:
     volumes:
       - postgres_mail_mapper_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready", "-d", "postgres"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d postgres"]
       start_period: 5s
       interval: 30s
       timeout: 3s
@@ -145,9 +156,12 @@ services:
   mail-tracker:
     build: ./mail-tracker
     image: hire_insight_ai_assistant_mail_tracker:latest
+    restart: unless-stopped
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       redis-mail-tracker:
         condition: service_healthy
     environment:
@@ -169,6 +183,7 @@ services:
 
   redis-mail-tracker:
     image: redis:7
+    restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
@@ -184,11 +199,14 @@ services:
   google-sheets-accessor:
     build: ./google-sheets-accessor
     image: hire_insight_ai_assistant_google_sheets_accessor:latest
+    restart: unless-stopped
     depends_on:
       postgres-google-sheets-accessor:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     environment:
       - PORT=8083
       - GOOGLE_APPLICATION_CREDENTIALS=/secrets/gsa-credentials.json
@@ -220,9 +238,12 @@ services:
   application-embedding-generator:
     build: ./application-embedding-generator
     image: hire_insight_ai_assistant_application_embedding_generator:latest
+    restart: unless-stopped
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     environment:
       - KAFKA_SERVER=kafka:9092
       - KAFKA_CLIENT_ID=application-embedding-generator
@@ -241,6 +262,7 @@ services:
 
   postgres-google-sheets-accessor:
     image: pgvector/pgvector:pg17
+    restart: unless-stopped
     environment:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password
@@ -250,7 +272,7 @@ services:
     volumes:
       - postgres_google_sheets_accessor_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready", "-d", "postgres"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d postgres"]
       start_period: 5s
       interval: 30s
       timeout: 3s
@@ -259,9 +281,12 @@ services:
   hire-event-processor:
     build: ./hire-event-processor
     image: hire_insight_ai_assistant_hire_event_processor:latest
+    restart: unless-stopped
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       mail-processor:
         condition: service_healthy
       google-sheets-accessor:
@@ -293,9 +318,12 @@ services:
   hire-event-notifier:
     build: ./hire-event-notifier
     image: hire_insight_ai_assistant_hire_event_notifier:latest
+    restart: unless-stopped
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       hire-event-processor:
         condition: service_healthy
     environment:
@@ -319,9 +347,12 @@ services:
   telegram-bot:
     build: ./telegram-bot
     image: hire_insight_ai_assistant_telegram_bot:latest
+    restart: unless-stopped
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       hire-event-processor:
         condition: service_healthy
       redis-telegram-bot:
@@ -342,6 +373,7 @@ services:
 
   redis-telegram-bot:
     image: redis:7
+    restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6381:6379"
@@ -360,6 +392,8 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       mail-processor:
         condition: service_healthy
       google-sheets-accessor:

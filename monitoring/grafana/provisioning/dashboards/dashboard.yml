@@ -3,7 +3,7 @@ apiVersion: 1
 providers:
   - name: mail-mapper
     orgId: 1
-    folder: Mail Mapper
+    folder: Overviews
     type: file
     disableDeletion: false
     updateIntervalSeconds: 30

@@ -28,12 +28,15 @@ resolve_bin() {
 }
 
 BIN="$(resolve_bin)"
-BS=kafka:9092
+BS="${KAFKA_BOOTSTRAP_SERVER:-kafka-1:9092}"
+TOPIC_REPLICATION_FACTOR="${KAFKA_TOPIC_REPLICATION_FACTOR:-2}"
+BS_HOST="${BS%%:*}"
+BS_PORT="${BS##*:}"
 
 echo "⏳ Waiting for Kafka TCP on ${BS} ..."
 
 for i in {1..60}; do
-  if (exec 3<>/dev/tcp/kafka/9092) 2>/dev/null; then
+  if (exec 3<>"/dev/tcp/${BS_HOST}/${BS_PORT}") 2>/dev/null; then
     exec 3>&- 3<&-
     break
   fi
@@ -51,7 +54,7 @@ echo "→ Topics before:"
 "${BIN}/kafka-topics.sh" --bootstrap-server "${BS}" --list || true
 
 create() {
-  local topic="$1" parts="${2:-3}" rf="${3:-1}"
+  local topic="$1" parts="${2:-3}" rf="${3:-${TOPIC_REPLICATION_FACTOR}}"
   echo "→ Creating topic ${topic} (${parts} partitions, RF=${rf})"
   "${BIN}/kafka-topics.sh" --bootstrap-server "${BS}" \
     --create --topic "${topic}" \
@@ -60,18 +63,18 @@ create() {
     --if-not-exists
 }
 
-create new-mail 3 1
-create interesting-mail 3 1
-create hire-event 3 1
-create notification 3 1
-create applications-sync-unprocessed 3 1
-create applications-sync-processed 3 1
-create application-update-unprocessed 3 1
-create application-update-processed 3 1
-create notification-sync 3 1
-create add-embedding-for-application 3 1
-create save-embedding-for-application 3 1
-create feedback 3 1
+create new-mail
+create interesting-mail
+create hire-event
+create notification
+create applications-sync-unprocessed
+create applications-sync-processed
+create application-update-unprocessed
+create application-update-processed
+create notification-sync
+create add-embedding-for-application
+create save-embedding-for-application
+create feedback
 
 echo "→ Topics after:"
 "${BIN}/kafka-topics.sh" --bootstrap-server "${BS}" --list

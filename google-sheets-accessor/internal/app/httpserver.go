@@ -3,8 +3,10 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/router"
@@ -41,7 +43,7 @@ func (s *HTTPServer) Run(ctx context.Context) error {
 	secureMux := s.apiVersionMiddleware(mux)
 
 	server := &http.Server{
-		Addr:    ":8083",
+		Addr:    fmt.Sprintf(":%s", os.Getenv("PORT")),
 		Handler: secureMux,
 	}
 

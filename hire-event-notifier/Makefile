@@ -1,20 +1,7 @@
-# Docker commands
+test:
+	go test -parallel=1 -count=1 ./... -coverprofile cover.out
+	go tool cover -func=cover.out | tail -n1
 
-docker-image-build:
-	docker build -t hire_insight_ai_assistant_mail_processor:latest .
-	minikube image load hire_insight_ai_assistant_mail_processor:latest
-
-docker-image-rm:
-	docker image rm hire_insight_ai_assistant_mail_processor:latest
-
-migration-gen:
-	@if [ -z "$$DATABASE_MAIL_PROCESSOR_URL" ]; then echo "ERROR: set DATABASE_MAIL_PROCESSOR_URL"; exit 1; fi
-	PYTHONPATH=. \
-	DATABASE_MAIL_PROCESSOR_URL=$$DATABASE_MAIL_PROCESSOR_URL \
-	alembic revision -m "init" --autogenerate
-
-migration-up:
-	@if [ -z "$$DATABASE_MAIL_PROCESSOR_URL" ]; then echo "ERROR: set DATABASE_MAIL_PROCESSOR_URL"; exit 1; fi
-	PYTHONPATH=../. \
-	DATABASE_MAIL_PROCESSOR_URL=$$DATABASE_MAIL_PROCESSOR_URL \
-	alembic upgrade head
+gomod:
+	go mod tidy
+	go mod vendor

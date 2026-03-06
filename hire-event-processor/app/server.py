@@ -37,6 +37,7 @@ kafka_event_handler = get_kafka_event_handler(config, kafka_client)
 
 _stop_event = threading.Event()
 _consumer_thread = None
+KAFKA_RETRY_DELAY_SECONDS = 1.0
 
 
 def log_kafka_message(
@@ -55,7 +56,7 @@ def log_kafka_message(
     )
 
 
-def _consumer_loop() -> None:
+def _consume_messages() -> None:
     topics = [
         topic
         for topic in (
@@ -71,61 +72,92 @@ def _consumer_loop() -> None:
 
         return
 
-    try:
-        kafka_client.subscribe(topics)
-        logger.info("Kafka subscribed to topics: %s", topics)
+    kafka_client.subscribe(topics)
+    logger.info("Kafka subscribed to topics: %s", topics)
 
-        md = kafka_client.list_topics(timeout=10.0)
-        available_topics = list(md.topics.keys())
+    md = kafka_client.list_topics(timeout=10.0)
+    available_topics = list(md.topics.keys())
 
-        for topic in topics:
-            if topic not in md.topics:
-                logger.error(
-                    "Topic '%s' not found. Available topics: %s",
-                    topic,
-                    available_topics,
-                )
-            else:
-                tmd = md.topics[topic]
-                if tmd.error is not None:
-                    logger.error("Topic '%s' metadata error: %s", topic, tmd.error)
-                else:
-                    parts = sorted(p.id for p in tmd.partitions.values())
-                    logger.info("Topic '%s' partitions: %s", topic, parts)
-
-        for _ in range(30):
-            parts = kafka_client.assignment()
-            if parts:
-                logger.info("Assigned partitions: %s", parts)
-                break
-            time.sleep(0.5)
+    for topic in topics:
+        if topic not in md.topics:
+            logger.error(
+                "Topic '%s' not found. Available topics: %s",
+                topic,
+                available_topics,
+            )
         else:
-            logger.warning("No partitions assigned within 15s")
+            tmd = md.topics[topic]
+            if tmd.error is not None:
+                logger.error("Topic '%s' metadata error: %s", topic, tmd.error)
+            else:
+                parts = sorted(p.id for p in tmd.partitions.values())
+                logger.info("Topic '%s' partitions: %s", topic, parts)
 
-        while not _stop_event.is_set():
-            item = kafka_client.poll_once(timeout=1.0)
-            if not item:
-                continue
-            key, value, headers, msg = item
-            try:
-                log_kafka_message(key, value, headers, msg)
+    for _ in range(30):
+        parts = kafka_client.assignment()
+        if parts:
+            logger.info("Assigned partitions: %s", parts)
+            break
+        time.sleep(0.5)
+    else:
+        logger.warning("No partitions assigned within 15s")
 
-                topic = msg.topic()
-                if topic == config.KAFKA_TOPIC_INTERESTING_MAIL:
-                    kafka_event_handler.handle_interesting_mail(key, value)
-                elif topic == config.KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED:
-                    kafka_event_handler.handle_application_update(key, value)
-                elif topic == config.KAFKA_TOPIC_APPLICATIONS_SYNC_UNPROCESSED:
-                    kafka_event_handler.handle_application_sync(key, value)
-                else:
-                    logger.warning("No handler configured for topic %s", topic)
-            except Exception:
-                logger.exception("Handler error")
-    except Exception:
-        logger.exception("Consumer thread crashed")
-    finally:
-        kafka_client.close_consumer()
-        logger.info("Kafka consumer closed")
+    while not _stop_event.is_set():
+        item = kafka_client.poll_once(timeout=1.0)
+        if not item:
+            continue
+        key, value, headers, msg = item
+        try:
+            log_kafka_message(key, value, headers, msg)
+
+            topic = msg.topic()
+            if topic == config.KAFKA_TOPIC_INTERESTING_MAIL:
+                kafka_event_handler.handle_interesting_mail(key, value)
+            elif topic == config.KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED:
+                kafka_event_handler.handle_application_update(key, value)
+            elif topic == config.KAFKA_TOPIC_APPLICATIONS_SYNC_UNPROCESSED:
+                kafka_event_handler.handle_application_sync(key, value)
+            else:
+                logger.warning("No handler configured for topic %s", topic)
+        except Exception:
+            logger.exception("Handler error")
+
+
+def _consumer_loop() -> None:
+    for attempt in range(1, kafka_config.kafka_retries + 1):
+        if _stop_event.is_set():
+            return
+
+        try:
+            logger.info(
+                "Starting Kafka consumer attempt %s/%s",
+                attempt,
+                kafka_config.kafka_retries,
+            )
+            _consume_messages()
+
+            return
+        except Exception as e:
+            logger.exception(
+                "Consumer thread crashed on attempt %s/%s: %s",
+                attempt,
+                kafka_config.kafka_retries,
+                e,
+            )
+        finally:
+            kafka_client.close_consumer()
+            logger.info("Kafka consumer closed")
+
+        if attempt == kafka_config.kafka_retries:
+            logger.error(
+                "Kafka consumer stopped after %s attempts",
+                kafka_config.kafka_retries,
+            )
+
+            return
+
+        if _stop_event.wait(KAFKA_RETRY_DELAY_SECONDS):
+            return
 
 
 def start_consumer_thread() -> None:

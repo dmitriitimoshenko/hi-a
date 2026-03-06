@@ -1,8 +1,7 @@
-# Docker commands
+test:
+	go test -parallel=1 -count=1 ./... -coverprofile cover.out
+	go tool cover -func=cover.out | tail -n1
 
-docker-image-build:
-	docker build -t hire_insight_ai_assistant_telegram_bot:latest .
-	minikube image load hire_insight_ai_assistant_telegram_bot:latest
-
-docker-image-rm:
-	docker image rm hire_insight_ai_assistant_telegram_bot:latest
+gomod:
+	go mod tidy
+	go mod vendor

@@ -17,6 +17,10 @@ jobs:
         service:
           - name: Google Sheets Accessor
             dir: google-sheets-accessor
+          - name: Telegram Bot
+            dir: telegram-bot
+          - name: Hire Event Notifier
+            dir: hire-event-notifier
     steps:
       - name: Checkout
         uses: actions/checkout@v4.2.2

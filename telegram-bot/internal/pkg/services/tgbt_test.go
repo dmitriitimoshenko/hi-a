@@ -85,6 +85,29 @@ func TestTelegramBotServiceBuildApplicationDiffMessage(t *testing.T) {
 				return fmt.Sprintf("%sApply updates or skip.", msg)
 			}(),
 		},
+		{
+			name: "escapes html and nil values",
+			content: dto.DiffMessageContent{
+				Company: "A < B",
+				Role:    "Engineer <Lead>",
+				RowID:   9,
+				Differencies: []dto.ApplicationDifference{
+					{Field: "stage<code>", DBValue: nil, SheetValue: "<updated>"},
+				},
+				Errors: []string{"broken <tag>"},
+			},
+			expected: func() string {
+				msg := "In application (row 9) for role <b>Engineer &lt;Lead&gt;</b> in company <b>A &lt; B</b> we noticed the following changes:\n"
+				msg = fmt.Sprintf("%s• No detailed field differences provided", msg)
+				msg = fmt.Sprintf("%s• <code>%s</code>: %s → %s\n", msg, "stage&lt;code&gt;", "nil", "&lt;updated&gt;")
+				msg = fmt.Sprintf("%s\n", msg)
+				msg = fmt.Sprintf("%sHowever, we encountered some issues while processing the application:\n", msg)
+				msg = fmt.Sprintf("%s• %s\n", msg, "broken &lt;tag&gt;")
+				msg = fmt.Sprintf("%s\n", msg)
+
+				return fmt.Sprintf("%sApply updates or skip.", msg)
+			}(),
+		},
 	}
 
 	for _, tt := range tests {
@@ -197,9 +220,8 @@ func TestTelegramBotServiceBuildNewMappedEmailMessage(t *testing.T) {
 	defaultTemplate := "You received an email from %s (%s) about role <b>%s</b> at <b>%s</b>"
 
 	tests := []struct {
-		name     string
-		label    enums.EmailLabel
-		expected string
+		name  string
+		label enums.EmailLabel
 	}{
 		{name: "applied", label: enums.EmailLabelApplied},
 		{name: "denied", label: enums.EmailLabelDenied},

@@ -493,6 +493,24 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
 
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.9.0
+    restart: unless-stopped
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+    command:
+      - "--kafka.server=kafka-1:9092"
+      - "--kafka.server=kafka-2:9092"
+      - "--group.filter=.*"
+      - "--topic.filter=.*"
+      - "--offset.show-all"
+      - "--web.listen-address=:9308"
+    ports:
+      - "9308:9308"
+
 volumes:
   kafka_data:
   kafka_2_data:

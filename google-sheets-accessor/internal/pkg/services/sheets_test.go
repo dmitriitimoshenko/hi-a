@@ -815,6 +815,18 @@ func TestGetSetDatesAndStatus(t *testing.T) {
 	client.AssertExpectations(t)
 }
 
+func TestSetDateFieldsNil(t *testing.T) {
+	service, client := newSheetsServiceWithMock()
+
+	client.On("Write", mock.Anything, "", "K1").Return(nil).Once()
+	assert.Equal(t, service.SetRespondedAt(context.Background(), 1, nil), nil)
+
+	client.On("Write", mock.Anything, "", "L1").Return(nil).Once()
+	assert.Equal(t, service.SetNextFollowUpAt(context.Background(), 1, nil), nil)
+
+	client.AssertExpectations(t)
+}
+
 func TestGetAppliedAtParseError(t *testing.T) {
 	service, client := newSheetsServiceWithMock()
 

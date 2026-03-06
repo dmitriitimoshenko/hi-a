@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"html"
 
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/enums"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/services/dto"
@@ -34,14 +35,19 @@ func (s *TelegramBotService) BuildApplicationDiffMessage(diffMessageContent dto.
 	diffMessage := fmt.Sprintf(
 		"In application (row %d) for role <b>%s</b> in company <b>%s</b> we noticed the following changes:\n",
 		diffMessageContent.RowID,
-		diffMessageContent.Role,
-		diffMessageContent.Company,
+		escapeApplicationDiffText(diffMessageContent.Role),
+		escapeApplicationDiffText(diffMessageContent.Company),
 	)
 
 	diffMessage = fmt.Sprintf("%s• No detailed field differences provided", diffMessage)
 	if len(diffMessageContent.Differencies) > 0 {
 		for _, diff := range diffMessageContent.Differencies {
-			diffLine := fmt.Sprintf("• <code>%s</code>: %v → %v", diff.Field, diff.DBValue, diff.SheetValue)
+			diffLine := fmt.Sprintf(
+				"• <code>%s</code>: %s → %s",
+				escapeApplicationDiffText(diff.Field),
+				formatApplicationDiffValue(diff.DBValue),
+				formatApplicationDiffValue(diff.SheetValue),
+			)
 			diffMessage = fmt.Sprintf("%s%s\n", diffMessage, diffLine)
 		}
 		diffMessage = fmt.Sprintf("%s\n", diffMessage)
@@ -50,7 +56,7 @@ func (s *TelegramBotService) BuildApplicationDiffMessage(diffMessageContent dto.
 	if len(diffMessageContent.Errors) > 0 {
 		diffMessage = fmt.Sprintf("%sHowever, we encountered some issues while processing the application:\n", diffMessage)
 		for _, err := range diffMessageContent.Errors {
-			errorLine := fmt.Sprintf("• %s", err)
+			errorLine := fmt.Sprintf("• %s", escapeApplicationDiffText(err))
 			diffMessage = fmt.Sprintf("%s%s\n", diffMessage, errorLine)
 		}
 		diffMessage = fmt.Sprintf("%s\n", diffMessage)
@@ -171,6 +177,23 @@ func (s *TelegramBotService) BuildNewMappedEmailMessage(
 			company,
 		)
 	}
+}
+
+func escapeApplicationDiffText(value string) string {
+	escapedValue := html.EscapeString(value)
+
+	return escapedValue
+}
+
+func formatApplicationDiffValue(value interface{}) string {
+	if value == nil {
+		return "nil"
+	}
+
+	formattedValue := fmt.Sprint(value)
+	escapedValue := escapeApplicationDiffText(formattedValue)
+
+	return escapedValue
 }
 
 func (s *TelegramBotService) BuildNewMappedEmailKeyboard(

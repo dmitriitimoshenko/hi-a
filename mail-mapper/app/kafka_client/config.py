@@ -10,6 +10,7 @@ class KafkaConfig:
     bootstrap_servers: str
     client_id: str
     group_id: str
+    kafka_retries: int = 30
     kafka_debug: bool = False
     kafka_reset_from_beginning: bool = False
 
@@ -17,6 +18,7 @@ class KafkaConfig:
         config = {
             "bootstrap.servers": self.bootstrap_servers,
             "client.id": self.client_id,
+            "message.send.max.retries": self.kafka_retries,
         }
 
         return config

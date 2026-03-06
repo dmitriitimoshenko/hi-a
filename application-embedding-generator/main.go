@@ -13,11 +13,15 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/segmentio/kafka-go"
 )
+
+const kafkaMaxAttempts = 30
+const kafkaReaderTimeoutLogInterval = time.Minute
 
 type config struct {
 	KafkaBrokers          []string
@@ -182,7 +186,48 @@ func (e *permanentError) Error() string {
 	return fmt.Sprintf("openai returned status %d: %s", e.StatusCode, e.Body)
 }
 
+type throttledKafkaReaderLogger struct {
+	logger             *log.Logger
+	mutex              sync.Mutex
+	lastTimeoutLogAt   time.Time
+	suppressedTimeouts int
+}
+
+func (l *throttledKafkaReaderLogger) log(msg string, args ...interface{}) {
+	formattedMessage := fmt.Sprintf(msg, args...)
+	if !l.isTransientKafkaReaderTimeout(formattedMessage) {
+		l.logger.Printf("kafka reader error: %s", formattedMessage)
+
+		return
+	}
+
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	now := time.Now()
+	if l.lastTimeoutLogAt.IsZero() || now.Sub(l.lastTimeoutLogAt) >= kafkaReaderTimeoutLogInterval {
+		if l.suppressedTimeouts > 0 {
+			formattedMessage = fmt.Sprintf("%s (suppressed %d similar timeout logs)", formattedMessage, l.suppressedTimeouts)
+		}
+
+		l.lastTimeoutLogAt = now
+		l.suppressedTimeouts = 0
+
+		l.logger.Printf("kafka reader error: %s", formattedMessage)
+
+		return
+	}
+
+	l.suppressedTimeouts++
+}
+
+func (l *throttledKafkaReaderLogger) isTransientKafkaReaderTimeout(msg string) bool {
+	return strings.Contains(msg, "unknown error reading partition") && strings.Contains(msg, "i/o timeout")
+}
+
 func newEmbeddingGenerator(cfg config, logger *log.Logger) *embeddingGenerator {
+	readerLogger := &throttledKafkaReaderLogger{logger: logger}
+
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:     cfg.KafkaBrokers,
 		GroupID:     cfg.KafkaConsumerGroup,
@@ -190,11 +235,10 @@ func newEmbeddingGenerator(cfg config, logger *log.Logger) *embeddingGenerator {
 		MinBytes:    cfg.ConsumerMinBytes,
 		MaxBytes:    cfg.ConsumerMaxBytes,
 		MaxWait:     cfg.ConsumerMaxWait,
+		MaxAttempts: kafkaMaxAttempts,
 		StartOffset: kafka.FirstOffset,
 		Logger:      kafka.LoggerFunc(func(msg string, args ...interface{}) {}),
-		ErrorLogger: kafka.LoggerFunc(func(msg string, args ...interface{}) {
-			logger.Printf("kafka reader error: "+msg, args...)
-		}),
+		ErrorLogger: kafka.LoggerFunc(readerLogger.log),
 	})
 
 	writer := &kafka.Writer{
@@ -205,6 +249,7 @@ func newEmbeddingGenerator(cfg config, logger *log.Logger) *embeddingGenerator {
 		BatchSize:              cfg.ProducerBatchSize,
 		BatchBytes:             int64(cfg.ProducerBatchBytes),
 		BatchTimeout:           cfg.ProducerBatchTimeout,
+		MaxAttempts:            kafkaMaxAttempts,
 		Logger:                 kafka.LoggerFunc(func(msg string, args ...interface{}) {}),
 		ErrorLogger: kafka.LoggerFunc(func(msg string, args ...interface{}) {
 			logger.Printf("kafka writer error: "+msg, args...)

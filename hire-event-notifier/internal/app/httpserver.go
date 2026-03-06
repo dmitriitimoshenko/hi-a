@@ -9,24 +9,18 @@ import (
 	"os"
 	"time"
 
-	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/router"
+	"github.com/dmitriitimoshenko/hi-a/hire-event-notifier/internal/app/router"
 )
 
 type HTTPServer struct {
-	logger             *slog.Logger
-	applicationService applicationService
-	sheetsService      sheetsService
+	logger *slog.Logger
 }
 
 func NewHTTPServer(
-	applicationService applicationService,
-	sheetsService sheetsService,
 	logger *slog.Logger,
 ) *HTTPServer {
 	return &HTTPServer{
-		logger:             logger,
-		applicationService: applicationService,
-		sheetsService:      sheetsService,
+		logger: logger,
 	}
 }
 
@@ -35,8 +29,6 @@ func (s *HTTPServer) Run(ctx context.Context) error {
 
 	router.SetupRoutes(
 		mux,
-		s.applicationService,
-		s.sheetsService,
 		s.logger,
 	)
 

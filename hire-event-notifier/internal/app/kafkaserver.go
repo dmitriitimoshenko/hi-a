@@ -6,42 +6,42 @@ import (
 	"log/slog"
 	"os"
 
-	kafkaclient "github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/kafka"
+	kafkaclient "github.com/dmitriitimoshenko/hi-a/hire-event-notifier/internal/app/kafka"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
 	maxConsumeRetries = 30
 
-	KAFKA_TOPIC_NOTIFICATION      = "KAFKA_TOPIC_NOTIFICATION"
-	KAFKA_TOPIC_NOTIFICATION_SYNC = "KAFKA_TOPIC_NOTIFICATION_SYNC"
+	KAFKA_TOPIC_HIRE_EVENT                  = "KAFKA_TOPIC_HIRE_EVENT"
+	KAFKA_TOPIC_APPLICATIONS_SYNC_PROCESSED = "KAFKA_TOPIC_APPLICATIONS_SYNC_PROCESSED"
 )
 
 type KafkaServer struct {
-	kafka                   *kafkaclient.Client
-	logger                  *slog.Logger
-	notificationHandler     notificationHandler
-	notificationSyncHandler notificationSyncHandler
+	logger                          *slog.Logger
+	kafka                           *kafkaclient.Client
+	hireEventHandler                hireEventHandler
+	applicationSyncProcessedHandler applicationSyncProcessedHandler
 }
 
 func NewKafkaServer(
-	kafkaClient *kafkaclient.Client,
 	logger *slog.Logger,
-	notificationHandler notificationHandler,
-	notificationSyncHandler notificationSyncHandler,
+	kafkaClient *kafkaclient.Client,
+	hireEventHandler hireEventHandler,
+	applicationSyncProcessedHandler applicationSyncProcessedHandler,
 ) *KafkaServer {
 	return &KafkaServer{
-		kafka:                   kafkaClient,
-		logger:                  logger,
-		notificationHandler:     notificationHandler,
-		notificationSyncHandler: notificationSyncHandler,
+		kafka:                           kafkaClient,
+		logger:                          logger,
+		hireEventHandler:                hireEventHandler,
+		applicationSyncProcessedHandler: applicationSyncProcessedHandler,
 	}
 }
 
 func (s *KafkaServer) Run(ctx context.Context) error {
 	consumeTopicsHandlers := map[string]func(ctx context.Context, message kafkaclient.Message) error{
-		os.Getenv("KAFKA_TOPIC_NOTIFICATION"):      s.notificationHandler.Handle,
-		os.Getenv("KAFKA_TOPIC_NOTIFICATION_SYNC"): s.notificationSyncHandler.Handle,
+		os.Getenv("KAFKA_TOPIC_HIRE_EVENT"):                  s.hireEventHandler.Handle,
+		os.Getenv("KAFKA_TOPIC_APPLICATIONS_SYNC_PROCESSED"): s.applicationSyncProcessedHandler.Handle,
 	}
 
 	g, gctx := errgroup.WithContext(ctx)

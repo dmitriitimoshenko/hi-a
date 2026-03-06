@@ -756,9 +756,9 @@ func (h *TelegramBotHandler) handleMappingSkip(ctx context.Context, b *tgbot.Bot
 	}
 
 	if _, err = b.SendMessage(ctx, &tgbot.SendMessageParams{
-		ChatID:      callbackMessage.Chat.ID,
-		Text:        "Please select a reason for skipping the mapping:",
-		ParseMode:   models.ParseModeHTML,
+		ChatID:    callbackMessage.Chat.ID,
+		Text:      "Please select a reason for skipping the mapping:",
+		ParseMode: models.ParseModeHTML,
 		ReplyMarkup: skipKeyboard,
 	}); err != nil {
 		h.logger.Error("[handleMappingSkip] failed to send skip reason message in Telegram", "err", err)
@@ -837,44 +837,48 @@ func (h *TelegramBotHandler) handleSkipReason(ctx context.Context, b *tgbot.Bot,
 		return
 	}
 
-	replyMessage := callbackMessage.ReplyToMessage
-	if err = h.appendLineToMessage(ctx, b, fmt.Sprintf("⏭️ Skipped (Reason: %s)", skipReasonStr), replyMessage); err != nil {
+	targetMessage := callbackMessage.ReplyToMessage
+	if targetMessage == nil {
+		targetMessage = callbackMessage
+	}
+
+	if err = h.appendLineToMessage(ctx, b, fmt.Sprintf("⏭️ Skipped (Reason: %s)", skipReasonStr), targetMessage); err != nil {
 		h.logger.Error("[handleSkipReason] failed to append line to message", "err", err)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
-	if replyMessage != nil {
-		if err = h.removeInlineKeyboard(ctx, b, replyMessage); err != nil {
-			h.logger.Error("[handleSkipReason] failed to remove inline keyboard from reply message", "err", err)
+	if targetMessage != callbackMessage {
+		if err = h.removeInlineKeyboard(ctx, b, targetMessage); err != nil {
+			h.logger.Error("[handleSkipReason] failed to remove inline keyboard from target message", "err", err)
 			h.notifyInternalError(ctx, b, update)
 			return
 		}
 	}
 
-	feedbackTopic := os.Getenv(KAFKA_TOPIC_FEEDBACK)
-
 	cacheKey = fmt.Sprintf("notification:%s", emailID)
 	emailMappingData, ok, err := h.redisClient.Get(ctx, cacheKey)
 	if err != nil {
-		h.logger.Error("[handleSkipReason] failed to get notification data from redis", "err", err)
-		h.notifyInternalError(ctx, b, update)
+		h.logger.Error("[handleSkipReason] failed to get notification data from redis", "err", err, "emailID", emailID)
 		return
 	}
 	if !ok {
-		h.logger.Error("[handleSkipReason] notification data not found in redis", "emailID", emailID)
-		h.notifyInternalError(ctx, b, update)
+		h.logger.Warn("[handleSkipReason] notification data not found in redis", "emailID", emailID)
 		return
 	}
 
 	var newMappedEmailMessageContent *dto.NewMappedEmailMessageContent
 	if err = json.Unmarshal([]byte(emailMappingData), &newMappedEmailMessageContent); err != nil {
 		h.logger.Error("[handleSkipReason] failed to unmarshal notification data", "err", err)
-		h.notifyInternalError(ctx, b, update)
 		return
 	}
 	if newMappedEmailMessageContent == nil {
 		h.logger.Error("[handleSkipReason] newMappedEmailMessageContent is nil")
-		h.notifyInternalError(ctx, b, update)
+		return
+	}
+
+	feedbackTopic := os.Getenv(KAFKA_TOPIC_FEEDBACK)
+	if feedbackTopic == "" {
+		h.logger.Error("[handleSkipReason] KAFKA_TOPIC_FEEDBACK is empty")
 		return
 	}
 
@@ -895,7 +899,6 @@ func (h *TelegramBotHandler) handleSkipReason(ctx context.Context, b *tgbot.Bot,
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
 		h.logger.Error("[handleSkipReason] failed to marshal payload", "err", err)
-		h.notifyInternalError(ctx, b, update)
 		return
 	}
 
@@ -906,7 +909,6 @@ func (h *TelegramBotHandler) handleSkipReason(ctx context.Context, b *tgbot.Bot,
 		jsonPayload,
 	); err != nil {
 		h.logger.Error("[handleSkipReason] failed to publish skip reason to kafka", "err", err)
-		h.notifyInternalError(ctx, b, update)
 		return
 	}
 }

@@ -261,6 +261,31 @@ services:
       timeout: 5s
       retries: 9
 
+  application-embedding-generator:
+    build: ./application-embedding-generator
+    image: hire_insight_ai_assistant_application_embedding_generator:latest
+    restart: unless-stopped
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      - KAFKA_SERVER=kafka-1:9092,kafka-2:9092
+      - KAFKA_CLIENT_ID=application-embedding-generator
+      - KAFKA_CONSUMER_GROUP=application-embedding-generator
+      - KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING=add-embedding-for-application
+      - KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING=save-embedding-for-application
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - API_VERSION=1
+      - PORT=8089
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- --header='x-api-version: 1' http://localhost:8089/api/health-check >/dev/null || exit 1"]
+      start_period: 10s
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
   google-sheets-accessor:
     build: ./google-sheets-accessor
     image: hire_insight_ai_assistant_google_sheets_accessor:latest
@@ -300,31 +325,6 @@ services:
       timeout: 3s
       retries: 3
 
-  application-embedding-generator:
-    build: ./application-embedding-generator
-    image: hire_insight_ai_assistant_application_embedding_generator:latest
-    restart: unless-stopped
-    depends_on:
-      kafka-1:
-        condition: service_healthy
-      kafka-init:
-        condition: service_completed_successfully
-    environment:
-      - KAFKA_SERVER=kafka-1:9092,kafka-2:9092
-      - KAFKA_CLIENT_ID=application-embedding-generator
-      - KAFKA_CONSUMER_GROUP=application-embedding-generator
-      - KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING=add-embedding-for-application
-      - KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING=save-embedding-for-application
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - API_VERSION=1
-      - PORT=8089
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- --header='x-api-version: 1' http://localhost:8089/api/health-check >/dev/null || exit 1"]
-      start_period: 10s
-      interval: 30s
-      timeout: 3s
-      retries: 3
-
   postgres-google-sheets-accessor:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
@@ -336,6 +336,57 @@ services:
       - "5433:5432"
     volumes:
       - postgres_google_sheets_accessor_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d postgres"]
+      start_period: 5s
+      interval: 30s
+      timeout: 3s
+      retries: 9
+
+  google-calendar-accessor:
+    build: ./google-calendar-accessor
+    image: hire_insight_ai_assistant_google_calendar_accessor:latest
+    restart: unless-stopped
+    depends_on:
+      postgres-google-calendar-accessor:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      - PORT=8087
+      - GSA_DB_HOST=${GSA_DB_HOST}
+      - GSA_DB_PORT=${GSA_DB_PORT}
+      - GSA_DB_PASS=${GSA_DB_PASS}
+      - GSA_DB_USER=${GSA_DB_USER}
+      - GSA_DB_NAME=${GSA_DB_NAME}
+      - GSA_DB_SSLMODE=${GSA_DB_SSLMODE}
+      - KAFKA_SERVER=kafka-1:9092,kafka-2:9092
+      - KAFKA_CLIENT_ID=google-calendar-accessor
+      - KAFKA_CONSUMER_GROUP=google-calendar-accessor
+    volumes:
+      - ./secrets:/secrets:ro
+    ports:
+      - "8087:8087"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- --header='x-api-version: 1' http://localhost:8087/api/health-check >/dev/null || exit 1"]
+      start_period: 15s
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  postgres-google-calendar-accessor:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_google_calendar_accessor_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d postgres"]
       start_period: 5s

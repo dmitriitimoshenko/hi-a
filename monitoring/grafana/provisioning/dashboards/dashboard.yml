@@ -1,7 +1,7 @@
 apiVersion: 1
 
 providers:
-  - name: mail-mapper
+  - name: overviews
     orgId: 1
     folder: Overviews
     type: file

@@ -224,7 +224,7 @@ async def enforce_api_version(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
-    if request.url.path in {"/openapi.json", "/api/metrics"}:
+    if request.url.path == "/openapi.json":
         response = await call_next(request)
 
         return response

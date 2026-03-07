@@ -79,6 +79,24 @@ services:
       timeout: 10s
       retries: 20
 
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.9.0
+    restart: unless-stopped
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+    command:
+      - "--kafka.server=kafka-1:9092"
+      - "--kafka.server=kafka-2:9092"
+      - "--group.filter=.*"
+      - "--topic.filter=.*"
+      - "--offset.show-all"
+      - "--web.listen-address=:9308"
+    ports:
+      - "9308:9308"
+
   kafka-init:
     image: apache/kafka:4.0.1
     depends_on:
@@ -123,6 +141,7 @@ services:
       - CLASSIFY_BY_CENTROID_MARGIN=${CLASSIFY_BY_CENTROID_MARGIN}
       - CLASSIFY_BY_CENTROID_COMMIT_BATCH_SIZE=${CLASSIFY_BY_CENTROID_COMMIT_BATCH_SIZE}
       - CLASSIFY_BY_CENTROID_THRESHOLD_MULTIPLIER=${CLASSIFY_BY_CENTROID_THRESHOLD_MULTIPLIER}
+      - MAIL_MAPPER_TIMEOUT=${MAIL_MAPPER_TIMEOUT}
       - MAIL_MAPPER_URL=http://mail-mapper:8088
     ports:
       - "8081:8081"
@@ -355,7 +374,7 @@ services:
     ports:
       - "8085:8085"
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail http://localhost:8085/api/health-check --header 'x-api-version: 1' || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- --header='x-api-version: 1' http://localhost:8085/api/health-check >/dev/null || exit 1"]
       start_period: 15s
       interval: 30s
       timeout: 3s
@@ -492,24 +511,6 @@ services:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
-
-  kafka-exporter:
-    image: danielqsj/kafka-exporter:v1.9.0
-    restart: unless-stopped
-    depends_on:
-      kafka-1:
-        condition: service_healthy
-      kafka-2:
-        condition: service_healthy
-    command:
-      - "--kafka.server=kafka-1:9092"
-      - "--kafka.server=kafka-2:9092"
-      - "--group.filter=.*"
-      - "--topic.filter=.*"
-      - "--offset.show-all"
-      - "--web.listen-address=:9308"
-    ports:
-      - "9308:9308"
 
 volumes:
   kafka_data:

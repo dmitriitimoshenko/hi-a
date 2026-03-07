@@ -104,4 +104,3 @@ service-name/
 - `hire-event-notifier` converts hire events into notification payloads on `notification` and `notification-sync` topics for downstream consumers.
 - `telegram-bot` delivers notifications to Telegram users and forwards manual feedback to Kafka topic `feedback`.
 - `jobs-master` schedules periodic application sync jobs so the pipeline stays up to date.
-- Monitoring is available through Prometheus and Grafana, shipping with the `Mail Mapper Overview` dashboard.

@@ -3,12 +3,6 @@ global:
   evaluation_interval: 30s
 
 scrape_configs:
-  - job_name: mail-mapper
-    metrics_path: /api/metrics
-    static_configs:
-      - targets:
-          - mail-mapper:8088
-
   - job_name: kafka-exporter
     static_configs:
       - targets:

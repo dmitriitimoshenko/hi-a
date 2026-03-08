@@ -356,6 +356,7 @@ services:
         condition: service_completed_successfully
     environment:
       - PORT=8087
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/gca-credentials.json
       - GSA_DB_HOST=${GSA_DB_HOST}
       - GSA_DB_PORT=${GSA_DB_PORT}
       - GSA_DB_PASS=${GSA_DB_PASS}

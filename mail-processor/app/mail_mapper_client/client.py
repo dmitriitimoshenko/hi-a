@@ -94,7 +94,7 @@ class MailMapperClient:
         except requests.RequestException as e:
             message = f"Failed to call mail-mapper: {e}"
             self._logger.error(message)
-            raise ValueError(message)
+            raise ValueError(message) from e
 
         if response.status_code != 200:
             message = (
@@ -109,7 +109,7 @@ class MailMapperClient:
         except ValueError as e:
             message = f"Failed to decode mail-mapper response: {e}"
             self._logger.error(message)
-            raise ValueError(message)
+            raise ValueError(message) from e
 
         status_value = body.get("status")
         if status_value != BaseAPIResponseStatus.OK.value:

@@ -43,6 +43,8 @@ const (
 	skipReasonSelectedCacheTTL = 31 * 24 * time.Hour
 
 	gsaDiffUpdateEndpoint = "/api/application/diff/update"
+
+	gsaRequestTimeout = 5 * time.Second
 )
 
 type redisClient interface {
@@ -59,6 +61,7 @@ type TelegramBotHandler struct {
 	logger        *slog.Logger
 	redisClient   redisClient
 	kafkaClient   kafkaClient
+	httpClient    *http.Client
 	gsaBaseUrl    string
 	gsaAPIVersion string
 }
@@ -81,6 +84,7 @@ func NewTelegramBotHandler(
 		logger:        logger,
 		redisClient:   redisClient,
 		kafkaClient:   kafkaClient,
+		httpClient:    &http.Client{Timeout: gsaRequestTimeout},
 		gsaBaseUrl:    gsaBaseUrl,
 		gsaAPIVersion: apiVersion,
 	}
@@ -237,11 +241,7 @@ func (h *TelegramBotHandler) handleApplicationDiffApplySheet(
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-API-Version", h.gsaAPIVersion)
 
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-	}
-
-	resp, err := client.Do(req)
+	resp, err := h.httpClient.Do(req)
 	if err != nil {
 		h.logger.Error("[handleApplicationDiffApplySheet] request failed", "err", err)
 		h.notifyInternalError(ctx, b, update)
@@ -363,11 +363,7 @@ func (h *TelegramBotHandler) handleApplicationDiffApplyInternal(
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-API-Version", h.gsaAPIVersion)
 
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-	}
-
-	resp, err := client.Do(req)
+	resp, err := h.httpClient.Do(req)
 	if err != nil {
 		h.logger.Error("[handleApplicationDiffApplyInternal] request failed", "err", err)
 		h.notifyInternalError(ctx, b, update)
@@ -756,9 +752,9 @@ func (h *TelegramBotHandler) handleMappingSkip(ctx context.Context, b *tgbot.Bot
 	}
 
 	if _, err = b.SendMessage(ctx, &tgbot.SendMessageParams{
-		ChatID:    callbackMessage.Chat.ID,
-		Text:      "Please select a reason for skipping the mapping:",
-		ParseMode: models.ParseModeHTML,
+		ChatID:      callbackMessage.Chat.ID,
+		Text:        "Please select a reason for skipping the mapping:",
+		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: skipKeyboard,
 	}); err != nil {
 		h.logger.Error("[handleMappingSkip] failed to send skip reason message in Telegram", "err", err)

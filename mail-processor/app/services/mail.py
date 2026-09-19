@@ -86,7 +86,7 @@ class MailService:
         except Exception as e:
             message = f"Failed to get emails not checked for interest: {e}"
             self._logger.error(message)
-            raise ValueError(message)
+            raise ValueError(message) from e
 
         if not emails:
             self._logger.info("No new emails to check for interest")
@@ -104,7 +104,7 @@ class MailService:
         except Exception as e:
             message = f"Failed to process email batch: {e}"
             self._logger.error(message)
-            raise ValueError(message)
+            raise ValueError(message) from e
 
         skipped_emails_amount += batch_skipped
 
@@ -186,7 +186,7 @@ class MailService:
         except Exception as e:
             message = f"Failed to create_with_label: {e}"
             self._logger.debug(message)
-            raise ValueError(message)
+            raise ValueError(message) from e
 
     def learn(self) -> None:
         try:
@@ -209,7 +209,7 @@ class MailService:
         except Exception as e:
             message = f"Error during learning: {e}"
             self._logger.error(message)
-            raise ValueError(message)
+            raise ValueError(message) from e
 
         try:
             for item, embedding in zip(items, embeddings, strict=False):
@@ -270,7 +270,7 @@ class MailService:
         except Exception as e:
             message = f"Failed to resolve mappings via mail-mapper: {e}"
             self._logger.error(message)
-            raise ValueError(message)
+            raise ValueError(message) from e
 
         matches_by_email_id: dict[int, MailMapperMatch] = {
             match.email_id: match for match in mapper_result.matches
@@ -316,7 +316,7 @@ class MailService:
         except Exception as e:
             message = f"Looking for ICS files failed {e}"
             self._logger.error(message)
-            raise ValueError(message)
+            raise ValueError(message) from e
 
         if not records:
             return None

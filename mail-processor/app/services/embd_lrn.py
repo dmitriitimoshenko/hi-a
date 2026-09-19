@@ -67,7 +67,7 @@ class EmbdLrnService:
         except Exception as e:
             e_msg = f"Failed to create_with_label: {e}"
             self._logger.debug(e_msg)
-            raise ValueError(e_msg)
+            raise ValueError(e_msg) from e
 
     def learn(self) -> None:
         try:
@@ -81,7 +81,7 @@ class EmbdLrnService:
         except Exception as e:
             msg = "Failed to get EmbdLrn not used_for_learning"
             self._logger.error(msg)
-            raise ValueError(msg)
+            raise ValueError(msg) from e
 
         try:
             contents = [normalize_content(item.content) for item in items]
@@ -92,7 +92,7 @@ class EmbdLrnService:
         except Exception as e:
             msg = f"Error during learning: {e}"
             self._logger.error(msg)
-            raise ValueError(msg)
+            raise ValueError(msg) from e
 
         try:
             for item, embedding in zip(items, embeddings):
@@ -109,7 +109,7 @@ class EmbdLrnService:
         except Exception as e:
             msg = "Failed to save a list of EmbdLrn with update embeddings"
             self._logger.error(msg)
-            raise ValueError(msg)
+            raise ValueError(msg) from e
 
     def commit(self) -> None:
         try:
@@ -123,7 +123,7 @@ class EmbdLrnService:
         except Exception as e:
             msg = "Failed to get any EmbdLrn"
             self._logger.error(msg)
-            raise ValueError(msg)
+            raise ValueError(msg) from e
 
         try:
             filtered_items: dict[str, list[list[float]]] = {}
@@ -195,7 +195,7 @@ class EmbdLrnService:
         except Exception as e:
             msg = f"Error while committing EmbdLrn: {e}"
             self._logger.error(msg)
-            raise ValueError(msg)
+            raise ValueError(msg) from e
 
     def _split_embeddings(
         self,

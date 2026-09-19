@@ -404,7 +404,7 @@ class MailMappingService:
         except Exception as e:
             message = f"Failed to get applications with no reply: {e}"
             self._logger.error(message)
-            raise ValueError(message)
+            raise ValueError(message) from e
 
         if not applications:
             skipped_ids = [email.id for email in emails]

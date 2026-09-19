@@ -43,9 +43,9 @@ func NewKafkaServer(
 }
 
 func (s *KafkaServer) Run(ctx context.Context) error {
-	consumeTopicsHandlers := map[string]func(ctx context.Context, message kafkaclient.Message) error{
-		os.Getenv("KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING"):   s.saveApplicationEmbeddingHandler.Handle,
-		os.Getenv("KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED"): s.applicationUpdateProcessedHandler.Handle,
+	consumeTopicsHandlers := s.consumeTopicsHandlers()
+	if len(consumeTopicsHandlers) == 0 {
+		return errors.New("no kafka consume topics configured")
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -85,6 +85,28 @@ func (s *KafkaServer) Run(ctx context.Context) error {
 	}
 
 	return g.Wait()
+}
+
+// consumeTopicsHandlers skips unset topics. Building the map straight from
+// os.Getenv would subscribe to a topic named "" when a variable is missing,
+// and two missing variables would collide on the same key, silently dropping
+// a handler.
+func (s *KafkaServer) consumeTopicsHandlers() map[string]func(context.Context, kafkaclient.Message) error {
+	consumeTopicsHandlers := map[string]func(context.Context, kafkaclient.Message) error{}
+
+	if topic := os.Getenv(KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING); topic != "" {
+		consumeTopicsHandlers[topic] = s.saveApplicationEmbeddingHandler.Handle
+	} else {
+		s.logger.Warn("topic is not configured, consumer disabled", slog.String("env", KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING))
+	}
+
+	if topic := os.Getenv(KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED); topic != "" {
+		consumeTopicsHandlers[topic] = s.applicationUpdateProcessedHandler.Handle
+	} else {
+		s.logger.Warn("topic is not configured, consumer disabled", slog.String("env", KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED))
+	}
+
+	return consumeTopicsHandlers
 }
 
 func (s *KafkaServer) Close(ctx context.Context) error {

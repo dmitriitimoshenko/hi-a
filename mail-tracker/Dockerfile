@@ -1,15 +1,16 @@
 FROM python:3.13-slim
 
-RUN apt-get update
-RUN apt-get install -y curl
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-ADD ./requirements.txt /app/requirements.txt
-RUN pip install -r requirements.txt
-RUN pip install pylint
+
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /app
 
 EXPOSE $PORT
 
-CMD ["gunicorn", "-c", "gunicorn.conf.py", "app.server:app"]
+CMD ["sh", "-c", "uvicorn app.server:app --host 0.0.0.0 --port ${PORT}"]

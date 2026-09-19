@@ -11,7 +11,7 @@ This project is AI friendly and built primarily in Python. It started as a web i
 - Keep the user informed through an everyday messenger while collecting feedback without adding noise
 
 ## Requirements
-- Hosting mashine *(for example, EC2 or a local machine)* with Python3.13, Docker and Docker Compose installed
+- Hosting mashine *(for example, EC2 or a local machine)* with Docker and Docker Compose installed
 - [OpenAI Platform](https://platform.openai.com/) account to enable embeddings
 - Google Account fot Gmail, Sheets and GCP usage *(recommended to create a new account)*
 - Telegram account
@@ -22,15 +22,14 @@ This project is AI friendly and built primarily in Python. It started as a web i
     * In Google Cloud Platform, generate a `json` credentials file for Google Sheets API access.
 2. Create a Telegram bot via [Bot Father](https://telegram.me/BotFather).
 3. **Optional:** register a dedicated Gmail address for job seeking to reduce spam and improve classifier accuracy.
-4. Install Python3.13, Docker and Docker Compose on the host.
+4. Install Docker and Docker Compose on the host.
 5. Populate `.env.example` with required secrets following instruction from the file.
 6. In the copied Google Sheet, use the `applications_list` page (`example` page can be removed).
 7. Bring up HI-A with:
     ```
-    python3.13 -m venv mail-processor/.venv \
-    docker compose up -d \
-    ./scripts/migrate.sh
+    docker compose up -d
     ```
+    Database migrations run automatically when the services start.
 8. Populate the `embd_cntr` table with data from `mail-processor/embeddings/embd_cntr_populate.csv`.
 
 ## Related documents

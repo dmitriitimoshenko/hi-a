@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	kafkaclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
+	busclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/bus"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/enums"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/models"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services/dto"
@@ -28,15 +28,15 @@ type applicationService interface {
 }
 
 type applicationUpdateProcessedHandler interface {
-	Handle(ctx context.Context, message kafkaclient.Message) error
+	Handle(ctx context.Context, message busclient.Message) error
 }
 
 type saveApplicationEmbeddingHandler interface {
-	Handle(ctx context.Context, message kafkaclient.Message) error
+	Handle(ctx context.Context, message busclient.Message) error
 }
 
 type saveApplicationEmbedding interface {
-	Handle(ctx context.Context, message kafkaclient.Message) error
+	Handle(ctx context.Context, message busclient.Message) error
 }
 
 type sheetsService interface {

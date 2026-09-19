@@ -9,8 +9,8 @@ import (
 	_ "time/tzdata"
 
 	"github.com/dmitriitimoshenko/hi-a/hire-event-processor/internal/app"
-	"github.com/dmitriitimoshenko/hi-a/hire-event-processor/internal/app/kafka"
-	"github.com/dmitriitimoshenko/hi-a/hire-event-processor/internal/app/kafka/handlers"
+	"github.com/dmitriitimoshenko/hi-a/hire-event-processor/internal/app/bus"
+	"github.com/dmitriitimoshenko/hi-a/hire-event-processor/internal/app/bus/handlers"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -30,38 +30,38 @@ func run() error {
 
 	appConfig := app.LoadConfig()
 
-	kafkaConfig, err := kafka.LoadConfig()
+	busConfig, err := bus.LoadConfig()
 	if err != nil {
 		return err
 	}
 
-	kafkaClient, err := kafka.New(kafkaConfig)
+	busClient, err := bus.New(busConfig)
 	if err != nil {
 		return err
 	}
 
 	interestingMailHandler := handlers.NewInterestingMailHandler(
 		logger,
-		kafkaClient,
+		busClient,
 		appConfig.TopicHireEvent,
 	)
 	applicationUpdateTransformer := handlers.NewApplicationUpdateTransformer(logger)
 	applicationUpdateHandler := handlers.NewApplicationUpdateHandler(
 		logger,
-		kafkaClient,
+		busClient,
 		applicationUpdateTransformer,
 		appConfig.TopicApplicationUpdateProcessed,
 	)
 	applicationSyncHandler := handlers.NewApplicationSyncHandler(
 		logger,
-		kafkaClient,
+		busClient,
 		appConfig.TopicApplicationsSyncProcessed,
 	)
 
-	kafkaServer := app.NewKafkaServer(
+	busServer := app.NewBusServer(
 		logger,
 		appConfig,
-		kafkaClient,
+		busClient,
 		interestingMailHandler,
 		applicationUpdateHandler,
 		applicationSyncHandler,
@@ -70,9 +70,9 @@ func run() error {
 
 	g, gctx := errgroup.WithContext(ctx)
 
-	defer kafkaServer.Close(ctx)
+	defer busServer.Close(ctx)
 	g.Go(func() error {
-		return kafkaServer.Run(gctx)
+		return busServer.Run(gctx)
 	})
 
 	g.Go(func() error {

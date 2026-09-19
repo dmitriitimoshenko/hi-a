@@ -1,18 +1,16 @@
 import logging
 import signal
 import threading
-import time
-from typing import Any, Awaitable, Callable
+from typing import Awaitable, Callable
 
-from confluent_kafka import Message
 from fastapi import FastAPI, Request, Response, status
 from fastapi.routing import APIRoute
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
-from app.kafka_client import KafkaClient, KafkaConfig
+from app.bus import BusClient, BusMessage, get_bus_config
 from app.router import api_router
-from app.router.handlers.kafka import get_kafka_event_handler
+from app.router.handlers.bus import get_bus_event_handler
 from app.config import Config
 
 logging.basicConfig(level=logging.INFO)
@@ -21,92 +19,64 @@ logger.info("Starting Mail Processor service...")
 
 config = Config()
 
-kafka_config = KafkaConfig(
-    bootstrap_servers=config.KAFKA_SERVER or "",
-    client_id=config.KAFKA_CLIENT_ID or "",
-)
-assert kafka_config.bootstrap_servers, "KAFKA_SERVER is not set"
+bus_config = get_bus_config()
+assert bus_config.redis_url, "REDIS_URL is not set"
 logger.debug(
-    "Kafka bootstrap: %s | client_id: %s",
-    kafka_config.bootstrap_servers,
-    kafka_config.client_id,
+    "Bus redis: %s | consumer: %s",
+    bus_config.redis_url,
+    bus_config.consumer_id,
 )
-kafka_client = KafkaClient(kafka_config, config.KAFKA_CONSUMER_GROUP)
+bus_client = BusClient(bus_config, config.STREAM_GROUP)
 
-kafka_event_handler = get_kafka_event_handler(config)
+bus_event_handler = get_bus_event_handler(config)
 
 _stop_event = threading.Event()
 _consumer_thread = None
-KAFKA_RETRY_DELAY_SECONDS = 1.0
+BUS_RETRY_DELAY_SECONDS = 1.0
 
 
-def log_kafka_message(
-    key: Any,
-    value: Any,
-    headers: dict[str, bytes],
-    msg: Message,
-) -> None:
+def log_bus_message(message: BusMessage) -> None:
     logger.info(
-        "Consumed message: key=%s value=%s partition=%s offset=%s",
-        key,
-        value,
-        msg.partition(),
-        msg.offset(),
+        "Consumed message: stream=%s id=%s key=%s value=%s",
+        message.topic,
+        message.entry_id,
+        message.key,
+        message.value,
     )
 
 
 def _consume_messages() -> None:
-    topic = config.KAFKA_TOPIC_NEW_MAIL
-    kafka_client.subscribe([topic])
-    logger.info("Kafka subscribed to topics: %s", [topic])
-
-    md = kafka_client.list_topics(timeout=10.0)
-    if topic not in md.topics:
-        logger.error(
-            "Topic '%s' not found. Available topics: %s",
-            topic,
-            list(md.topics.keys()),
-        )
-    else:
-        tmd = md.topics[topic]
-        if tmd.error is not None:
-            logger.error("Topic '%s' metadata error: %s", topic, tmd.error)
-        else:
-            parts = sorted(p.id for p in tmd.partitions.values())
-            logger.info("Topic '%s' partitions: %s", topic, parts)
-
-    for _ in range(30):
-        parts = kafka_client.assignment()
-        if parts:
-            logger.info("Assigned partitions: %s", parts)
-            break
-        time.sleep(0.5)
-    else:
-        logger.warning("No partitions assigned within 15s")
+    topic = config.STREAM_NEW_MAIL
+    bus_client.subscribe([topic])
+    logger.info("Bus subscribed to streams: %s", [topic])
 
     while not _stop_event.is_set():
-        item = kafka_client.poll_once(timeout=1.0)
-        if not item:
+        message = bus_client.poll_once(timeout=1.0)
+        if message is None:
             continue
-        key, value, headers, msg = item
-        try:
-            log_kafka_message(key, value, headers, msg)
 
-            kafka_event_handler.handle(key, value)
+        try:
+            log_bus_message(message)
+
+            bus_event_handler.handle(message.key, message.value)
         except Exception:
             logger.exception("Handler error")
 
+            continue
+
+        bus_client.commit(message)
+
 
 def _consumer_loop() -> None:
-    for attempt in range(1, kafka_config.kafka_retries + 1):
+    for attempt in range(1, bus_config.retries + 1):
         if _stop_event.is_set():
             return
 
         try:
             logger.info(
-                "Starting Kafka consumer attempt %s/%s",
+                "Starting bus consumer attempt %s/%s",
                 attempt,
-                kafka_config.kafka_retries,
+                bus_config.retries,
             )
             _consume_messages()
 
@@ -115,22 +85,19 @@ def _consumer_loop() -> None:
             logger.exception(
                 "Consumer thread crashed on attempt %s/%s: %s",
                 attempt,
-                kafka_config.kafka_retries,
+                bus_config.retries,
                 e,
             )
-        finally:
-            kafka_client.close_consumer()
-            logger.info("Kafka consumer closed")
 
-        if attempt == kafka_config.kafka_retries:
+        if attempt == bus_config.retries:
             logger.error(
-                "Kafka consumer stopped after %s attempts",
-                kafka_config.kafka_retries,
+                "Bus consumer stopped after %s attempts",
+                bus_config.retries,
             )
 
             return
 
-        if _stop_event.wait(KAFKA_RETRY_DELAY_SECONDS):
+        if _stop_event.wait(BUS_RETRY_DELAY_SECONDS):
             return
 
 
@@ -139,7 +106,7 @@ def start_consumer_thread() -> None:
     if _consumer_thread and _consumer_thread.is_alive():
         return
     _consumer_thread = threading.Thread(
-        target=_consumer_loop, name="kafka-consumer", daemon=True
+        target=_consumer_loop, name="bus-consumer", daemon=True
     )
     _consumer_thread.start()
 
@@ -148,7 +115,7 @@ def stop_consumer_thread() -> None:
     _stop_event.set()
     if _consumer_thread:
         _consumer_thread.join(timeout=10)
-    kafka_client.close_producer()
+    bus_client.close()
 
 
 def _handle_sigterm(*_) -> None:

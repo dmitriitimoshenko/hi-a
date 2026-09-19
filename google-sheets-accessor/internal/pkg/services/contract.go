@@ -9,7 +9,7 @@ import (
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services/dto"
 )
 
-type kafkaPublisher interface {
+type busPublisher interface {
 	Publish(ctx context.Context, topic string, key []byte, value []byte) error
 }
 

@@ -3,13 +3,13 @@ package app
 import (
 	"context"
 
-	kafkaclient "github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/kafka"
+	busclient "github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/bus"
 )
 
 type notificationHandler interface {
-	Handle(ctx context.Context, message kafkaclient.Message) error
+	Handle(ctx context.Context, message busclient.Message) error
 }
 
 type notificationSyncHandler interface {
-	Handle(ctx context.Context, message kafkaclient.Message) error
+	Handle(ctx context.Context, message busclient.Message) error
 }

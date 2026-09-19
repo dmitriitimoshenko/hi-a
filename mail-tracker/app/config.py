@@ -7,9 +7,9 @@ class Config:
 
     PORT = int(os.getenv("PORT", 8082))
 
-    KAFKA_TOPIC_NEW_MAIL = os.getenv("KAFKA_TOPIC_NEW_MAIL", "new-mail")
-    KAFKA_SERVER = os.getenv("KAFKA_SERVER")
-    KAFKA_CLIENT_ID = os.getenv("KAFKA_CLIENT_ID")
+    STREAM_NEW_MAIL = os.getenv("STREAM_NEW_MAIL", "new-mail")
+    REDIS_URL = os.getenv("REDIS_URL")
+    STREAM_CONSUMER_ID = os.getenv("STREAM_CONSUMER_ID")
 
     SERVICE_NAME = "mt"
 

@@ -14,7 +14,7 @@ import httpx
 
 from jobs import submit_new_email_to_application_mappings
 from jobs import application_diff
-from app.kafka_client import KafkaClient, get_kafka_client
+from app.bus import BusClient, get_bus_client
 
 
 logging.basicConfig(level=logging.INFO)
@@ -24,11 +24,11 @@ logger.info("Starting Jobs Master...")
 
 async def jobs_10_mins(
     client: httpx.AsyncClient,
-    kafka_client: KafkaClient,
+    bus_client: BusClient,
 ) -> None:
     await application_diff.run(
         client,
-        kafka_client,
+        bus_client,
     )
 
 
@@ -38,10 +38,10 @@ async def jobs_15_mins(client: httpx.AsyncClient) -> None:
 
 async def run_scheduler(
     client: httpx.AsyncClient,
-    kafka_client: KafkaClient,
+    bus_client: BusClient,
 ) -> None:
     ten_minutes_task = asyncio.create_task(
-        _run_periodic(jobs_10_mins, 600, client, kafka_client),
+        _run_periodic(jobs_10_mins, 600, client, bus_client),
     )
     fifteen_minutes_task = asyncio.create_task(
         _run_periodic(jobs_15_mins, 900, client),
@@ -78,13 +78,13 @@ async def _run_periodic(
 async def main() -> None:
     timeout = httpx.Timeout(connect=5, read=30, write=30, pool=5)
 
-    kafka_client = get_kafka_client()
+    bus_client = get_bus_client()
 
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            await run_scheduler(client, kafka_client)
+            await run_scheduler(client, bus_client)
     finally:
-        kafka_client.close()
+        bus_client.close()
 
 
 if __name__ == "__main__":

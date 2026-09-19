@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	kafkamessages "github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/kafka/handlers/messages"
+	busmessages "github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/bus/handlers/messages"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/tgbt/messages"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/enums"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/services/dto"
@@ -33,11 +33,11 @@ const (
 	detailsCommingMessage      = "☑️ Details will be sent to you shortly"
 	applicationDiffSkipMessage = "☑️ Skipped"
 
-	GSA_BASE_URL                               = "GSA_BASE_URL"
-	API_VERSION                                = "API_VERSION"
-	KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED = "KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED"
-	KAFKA_TOPIC_FEEDBACK                       = "KAFKA_TOPIC_FEEDBACK"
-	applicationUpdateUnprocessedConfirmKey     = "cnfm_button_pressed"
+	GSA_BASE_URL                           = "GSA_BASE_URL"
+	API_VERSION                            = "API_VERSION"
+	STREAM_APPLICATION_UPDATE_UNPROCESSED  = "STREAM_APPLICATION_UPDATE_UNPROCESSED"
+	STREAM_FEEDBACK                        = "STREAM_FEEDBACK"
+	applicationUpdateUnprocessedConfirmKey = "cnfm_button_pressed"
 
 	detailsCacheRefreshTTL     = 31 * 24 * time.Hour
 	skipReasonSelectedCacheTTL = 31 * 24 * time.Hour
@@ -53,14 +53,14 @@ type redisClient interface {
 	Delete(ctx context.Context, key string) (int64, error)
 }
 
-type kafkaClient interface {
+type busClient interface {
 	Publish(ctx context.Context, topic string, key []byte, value []byte) error
 }
 
 type TelegramBotHandler struct {
 	logger        *slog.Logger
 	redisClient   redisClient
-	kafkaClient   kafkaClient
+	busClient     busClient
 	httpClient    *http.Client
 	gsaBaseUrl    string
 	gsaAPIVersion string
@@ -69,7 +69,7 @@ type TelegramBotHandler struct {
 func NewTelegramBotHandler(
 	logger *slog.Logger,
 	redisClient redisClient,
-	kafkaClient kafkaClient,
+	busClient busClient,
 ) *TelegramBotHandler {
 	gsaBaseUrl := os.Getenv(GSA_BASE_URL)
 	if gsaBaseUrl == "" {
@@ -83,7 +83,7 @@ func NewTelegramBotHandler(
 	return &TelegramBotHandler{
 		logger:        logger,
 		redisClient:   redisClient,
-		kafkaClient:   kafkaClient,
+		busClient:     busClient,
 		httpClient:    &http.Client{Timeout: gsaRequestTimeout},
 		gsaBaseUrl:    gsaBaseUrl,
 		gsaAPIVersion: apiVersion,
@@ -532,7 +532,7 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 
 	h.logger.Info("9")
 
-	var payload kafkamessages.NotificationMessage
+	var payload busmessages.NotificationMessage
 	if err = json.Unmarshal([]byte(val), &payload); err != nil {
 		h.logger.Error("[handleMappingConfirmation] failed to unmarshal payload before publish", "err", err)
 		h.notifyInternalError(ctx, b, update)
@@ -552,9 +552,9 @@ func (h *TelegramBotHandler) handleMappingConfirmation(
 
 	h.logger.Info("11")
 
-	topicToPublish := os.Getenv("KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED")
-	if err = h.kafkaClient.Publish(ctx, topicToPublish, []byte(applicationUpdateUnprocessedConfirmKey), confirmPayload); err != nil {
-		h.logger.Error("[handleMappingConfirmation] failed to publish to kafka", "err", err, "label", emailLabel)
+	topicToPublish := os.Getenv("STREAM_APPLICATION_UPDATE_UNPROCESSED")
+	if err = h.busClient.Publish(ctx, topicToPublish, []byte(applicationUpdateUnprocessedConfirmKey), confirmPayload); err != nil {
+		h.logger.Error("[handleMappingConfirmation] failed to publish to bus", "err", err, "label", emailLabel)
 		h.notifyInternalError(ctx, b, update)
 		return
 	}
@@ -872,9 +872,9 @@ func (h *TelegramBotHandler) handleSkipReason(ctx context.Context, b *tgbot.Bot,
 		return
 	}
 
-	feedbackTopic := os.Getenv(KAFKA_TOPIC_FEEDBACK)
+	feedbackTopic := os.Getenv(STREAM_FEEDBACK)
 	if feedbackTopic == "" {
-		h.logger.Error("[handleSkipReason] KAFKA_TOPIC_FEEDBACK is empty")
+		h.logger.Error("[handleSkipReason] STREAM_FEEDBACK is empty")
 		return
 	}
 
@@ -898,13 +898,13 @@ func (h *TelegramBotHandler) handleSkipReason(ctx context.Context, b *tgbot.Bot,
 		return
 	}
 
-	if err = h.kafkaClient.Publish(
+	if err = h.busClient.Publish(
 		ctx,
 		feedbackTopic,
 		[]byte(emailID),
 		jsonPayload,
 	); err != nil {
-		h.logger.Error("[handleSkipReason] failed to publish skip reason to kafka", "err", err)
+		h.logger.Error("[handleSkipReason] failed to publish skip reason to bus", "err", err)
 		return
 	}
 }

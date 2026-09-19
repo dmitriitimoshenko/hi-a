@@ -15,7 +15,12 @@ This document captures the shared architecture and layout for the Python service
 4. mail-mapper → google-sheets-accessor: `POST /api/application/list` (applications without replies).
 5. telegram-bot → google-sheets-accessor: `POST /api/application/update-internal` and `POST /api/application/update-external` (diff apply buttons).
 
-**Kafka pipelines**
+**Redis Streams pipelines**
+
+The bus is Redis Streams on logical DB `2` of the shared Redis instance. Each
+arrow below is a stream consumed through a consumer group with `XACK`-based
+at-least-once delivery.
+
 * mail-tracker → new-mail → mail-processor.
 * mail-processor → interesting-mail → hire-event-processor.
 * hire-event-processor → hire-event → hire-event-notifier.
@@ -36,7 +41,7 @@ This document captures the shared architecture and layout for the Python service
 service-name/
   app/
     config.py                 # dataclass with environment wiring
-    server.py                 # FastAPI + Kafka bootstrapper
+    server.py                 # FastAPI + bus bootstrapper
     router/
       router.py               # composes API routers
       handlers/
@@ -46,10 +51,10 @@ service-name/
               request.py      # Pydantic request models
               response.py     # Dataclass response models
             <action>.py       # FastAPI handler (business entry point)
-        kafka/
-          handler.py          # Kafka event dispatcher for the service
+        bus/
+          handler.py          # Bus event dispatcher for the service
     services/                 # Application services (domain logic)
-    kafka_client/             # Shared Kafka client wrapper
+    bus/                      # Redis Streams client wrapper
     storage_client/           # HTTP clients to other services (optional)
     user_client/              # Additional HTTP clients (optional)
     enums/                    # Domain enums used across layers
@@ -57,7 +62,7 @@ service-name/
     integrations/             # External SDK adapters (optional)
     tools/                    # Miscellaneous helpers (optional)
   Dockerfile
-  gunicorn.conf.py
+  entrypoint.sh
   requirements.txt
   Makefile / scripts ...
 ```
@@ -76,15 +81,22 @@ service-name/
 - Middleware in `server.py` validates headers such as `X-API-Version` and returns an explicit `JSONResponse` on mismatch.
 - FastAPI routers keep request/response models in `messages/` with `request.py` and `response.py`.
 
-## Kafka Integration Pattern
+## Bus Integration Pattern
+
+The message bus is Redis Streams. Both language stacks expose the same minimal
+contract, so handlers never see the transport.
 
 - `app/server.py` owns the consumer lifecycle: background thread, graceful shutdown via SIGINT/SIGTERM, and log helpers for consumed messages.
-- `app/kafka_client/client.py` provides a typed wrapper over `confluent_kafka` with:
-  - Lazy producer/consumer initialisation (`_ensure_producer/_ensure_consumer`).
-  - Serialisers/deserialisers returning `(payload_bytes, content_type)` tuples.
-  - `poll_once` returning `(key, value, headers, Message)` or `None` with early exits.
-  - `publish` callbacks typed as `Callable[[Exception | None, Message], None]`.
-- Kafka event handling logic sits in `app/router/handlers/kafka/handler.py` and delegates to application services.
+- `app/bus/client.py` (Python) wraps `redis-py` with:
+  - Lazy client initialisation (`_ensure_client`).
+  - JSON serialisers/deserialisers for the `key` and `value` stream fields.
+  - `publish` mapping to `XADD` with `MAXLEN ~ STREAM_MAX_LEN` for retention.
+  - `subscribe` creating the consumer group via `XGROUP CREATE ... MKSTREAM`.
+  - `poll_once` returning a `BusMessage` or `None`; `commit` mapping to `XACK`.
+- `internal/app/bus/client.go` (Go) exposes `Publish`, `Consume`, `Close` over `go-redis`.
+- On start a consumer first replays its own unacknowledged entries (`XREADGROUP` with ID `0`), then switches to new messages (`>`). A handler that returns an error leaves the entry pending, so it is retried after a restart.
+- Set `STREAM_START_AT_OLDEST=true` for services that must process a stream's backlog from the beginning.
+- Bus event handling logic sits in `app/router/handlers/bus/` (Python) or `internal/app/bus/handlers/` (Go) and delegates to application services.
 
 ## Services & Clients
 
@@ -95,12 +107,12 @@ service-name/
 
 ## System Responsibilities
 
-- `mail-tracker` polls Gmail via `GMAIL_USER` / `GMAIL_APP_PASSWORD`, deduplicates messages in Redis, and publishes normalised payloads with attachments/ICS to Kafka topic `new-mail`.
-- `mail-processor` consumes `new-mail`, normalises content, builds OpenAI embeddings, classifies emails into hiring-related labels, stores data in Postgres, and publishes mapped interesting emails to Kafka topic `interesting-mail`.
-- `mail-mapper` matches interesting emails to tracked applications using scoring weights and calibrations from Postgres, records matches for analysis, and emits user feedback events to Kafka topic `feedback`.
-- `google-sheets-accessor` keeps the Google Sheet of applications in sync, persists data to Postgres, and emits Kafka events for application updates plus embedding requests to `add-embedding-for-application`.
-- `application-embedding-generator` consumes embedding requests, produces embeddings via OpenAI, and publishes them back to Kafka topic `save-embedding-for-application`.
-- `hire-event-processor` merges interesting emails and sheet updates into canonical hire events on Kafka topics (`hire-event`, `applications-sync-*`, `application-update-*`).
+- `mail-tracker` polls Gmail via `GMAIL_USER` / `GMAIL_APP_PASSWORD`, deduplicates messages in Redis, and publishes normalised payloads with attachments/ICS to stream `new-mail`.
+- `mail-processor` consumes `new-mail`, normalises content, builds OpenAI embeddings, classifies emails into hiring-related labels, stores data in Postgres, and publishes mapped interesting emails to stream `interesting-mail`.
+- `mail-mapper` matches interesting emails to tracked applications using scoring weights and calibrations from Postgres, records matches for analysis, and emits user feedback events to stream `feedback`.
+- `google-sheets-accessor` keeps the Google Sheet of applications in sync, persists data to Postgres, and emits bus events for application updates plus embedding requests to `add-embedding-for-application`.
+- `application-embedding-generator` consumes embedding requests, produces embeddings via OpenAI, and publishes them back to stream `save-embedding-for-application`.
+- `hire-event-processor` merges interesting emails and sheet updates into canonical hire events on streams (`hire-event`, `applications-sync-*`, `application-update-*`).
 - `hire-event-notifier` converts hire events into notification payloads on `notification` and `notification-sync` topics for downstream consumers.
-- `telegram-bot` delivers notifications to Telegram users and forwards manual feedback to Kafka topic `feedback`.
+- `telegram-bot` delivers notifications to Telegram users and forwards manual feedback to stream `feedback`.
 - `jobs-master` schedules periodic application sync jobs so the pipeline stays up to date.

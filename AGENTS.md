@@ -6,7 +6,7 @@ Always answer in English unless asked to do the opposite. Check file `AGENTS_ADD
 
 ## Project Structure & Module Organization
 - Monorepo of Python services: `mail-processor/`, `mail-tracker/`, `google-sheets-accessor/`, `mail-mapper/`, `hire-event-processor/`, `hire-event-notifier/`, `telegram-bot/`, `jobs-master/`.
-- Typical service layout: `app/` with `server.py`, `router/handlers/...`, `kafka_client/`, `config.py`, `enums/`, optional `database/` and `services/`.
+- Typical service layout: `app/` with `server.py`, `router/handlers/...`, `bus/`, `config.py`, `enums/`, optional `database/` and `services/`.
 - Orchestration: `docker-compose.yaml` (local stack). Shared scripts in `scripts/`. Images and diagrams in `images/`. Secrets (mounted) in `secrets/`.
 - Do not construct service dependencies inside business methods; instantiate them once in `__init__` and reuse the stored reference.
 - Prefer reusable `get_*` factories that accept optional pre-built dependencies (config, clients, sessions) and only construct defaults when they are not provided; avoid re-instantiating clients directly in handlers/services.
@@ -33,5 +33,5 @@ Always answer in English unless asked to do the opposite. Check file `AGENTS_ADD
 
 ## Security & Configuration Tips
 - Configuration via environment variables in `docker-compose.yaml` and local `.env`. Do not commit secrets. Use `secrets/` for mounted credentials (e.g., `gsa-credentials.json`).
-- Required envs include `OPENAI_API_KEY`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, DB URLs, and Kafka topics. Example: set in `.env`, then `make up`.
-- Kafka consumers across services now delegate message handling to dedicated handlers located under each service's `app/router/handlers/kafka/` package. See `mail-processor/app/router/handlers/kafka/handler.py`, `hire-event-processor/app/router/handlers/kafka/handler.py`, `hire-event-notifier/app/router/handlers/kafka/handler.py`, and `telegram-bot/app/router/handlers/kafka/handler.py` for the new entry points.
+- Required envs include `OPENAI_API_KEY`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, DB URLs, and `STREAM_*` stream names. Example: set in `.env`, then `make up`.
+- The message bus is Redis Streams, wrapped by `app/bus/` (Python) and `internal/app/bus/` (Go). Consumers delegate message handling to dedicated handlers: see `mail-processor/app/router/handlers/bus/handler.py`, `mail-mapper/app/router/handlers/bus/feedback.py`, `hire-event-processor/internal/app/bus/handlers/`, `hire-event-notifier/internal/app/bus/handlers/`, and `telegram-bot/internal/app/bus/handlers/`.

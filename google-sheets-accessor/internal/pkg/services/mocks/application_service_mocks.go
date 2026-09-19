@@ -65,11 +65,11 @@ func (m *ApplicationRepositoryMock) Paginate(ctx context.Context, pp dto.Paginat
 	return result, args.Error(1)
 }
 
-type KafkaPublisherMock struct {
+type BusPublisherMock struct {
 	mock.Mock
 }
 
-func (m *KafkaPublisherMock) Publish(ctx context.Context, topic string, key []byte, value []byte) error {
+func (m *BusPublisherMock) Publish(ctx context.Context, topic string, key []byte, value []byte) error {
 	args := m.Called(ctx, topic, key, value)
 
 	return args.Error(0)

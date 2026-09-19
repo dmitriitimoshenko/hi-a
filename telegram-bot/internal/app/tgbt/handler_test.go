@@ -90,7 +90,7 @@ func TestTelegramBotHandler_HandleApplicationDiffApply(t *testing.T) {
 			redisMock.On("Get", mock.Anything, cacheKey).Return(string(cachePayload), true, nil).Once()
 			redisMock.On("Delete", mock.Anything, cacheKey).Return(int64(1), nil).Once()
 
-			kafkaMock := &mocks.KafkaClientMock{}
+			busMock := &mocks.BusClientMock{}
 
 			payloadCh := make(chan messages.DiffUpdatePayload, 1)
 			restoreTransport := swapHTTPTransport(t, payloadCh)
@@ -99,7 +99,7 @@ func TestTelegramBotHandler_HandleApplicationDiffApply(t *testing.T) {
 			t.Setenv(tgbt.GSA_BASE_URL, "http://gsa.test")
 			t.Setenv(tgbt.API_VERSION, "api-version-test")
 
-			handler := tgbt.NewTelegramBotHandler(newTestLogger(), redisMock, kafkaMock)
+			handler := tgbt.NewTelegramBotHandler(newTestLogger(), redisMock, busMock)
 
 			baseText := "Diff detected"
 			callbackMessage := newCallbackMessage(baseText)
@@ -111,7 +111,7 @@ func TestTelegramBotHandler_HandleApplicationDiffApply(t *testing.T) {
 			handler.Handle(ctx, bot, update)
 
 			redisMock.AssertExpectations(t)
-			kafkaMock.AssertExpectations(t)
+			busMock.AssertExpectations(t)
 
 			select {
 			case payload := <-payloadCh:
@@ -156,9 +156,9 @@ func TestTelegramBotHandler_HandleApplicationDiffSkip(t *testing.T) {
 	redisMock := &mocks.RedisClientMock{}
 	redisMock.On("Delete", mock.Anything, cacheKey).Return(int64(1), nil).Once()
 
-	kafkaMock := &mocks.KafkaClientMock{}
+	busMock := &mocks.BusClientMock{}
 
-	handler := tgbt.NewTelegramBotHandler(newTestLogger(), redisMock, kafkaMock)
+	handler := tgbt.NewTelegramBotHandler(newTestLogger(), redisMock, busMock)
 
 	baseText := "Diff detected"
 	callbackMessage := newCallbackMessage(baseText)
@@ -167,7 +167,7 @@ func TestTelegramBotHandler_HandleApplicationDiffSkip(t *testing.T) {
 	handler.Handle(ctx, bot, update)
 
 	redisMock.AssertExpectations(t)
-	kafkaMock.AssertExpectations(t)
+	busMock.AssertExpectations(t)
 
 	popupRequests := telegramClient.requestsByMethod("answerCallbackQuery")
 	require.Len(t, popupRequests, 1)

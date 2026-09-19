@@ -6,11 +6,11 @@ from app.thresholds import load_thresholds
 class Config:
     PORT = int(os.getenv("PORT", 8081))
 
-    KAFKA_SERVER = os.getenv("KAFKA_SERVER")
-    KAFKA_CLIENT_ID = os.getenv("KAFKA_CLIENT_ID")
-    KAFKA_CONSUMER_GROUP = os.getenv("KAFKA_CONSUMER_GROUP")
-    KAFKA_TOPIC_NEW_MAIL = os.getenv("KAFKA_TOPIC_NEW_MAIL", "")
-    KAFKA_TOPIC_INTERESTING_MAIL = os.getenv("KAFKA_TOPIC_INTERESTING_MAIL", "")
+    REDIS_URL = os.getenv("REDIS_URL")
+    STREAM_CONSUMER_ID = os.getenv("STREAM_CONSUMER_ID")
+    STREAM_GROUP = os.getenv("STREAM_GROUP")
+    STREAM_NEW_MAIL = os.getenv("STREAM_NEW_MAIL", "")
+    STREAM_INTERESTING_MAIL = os.getenv("STREAM_INTERESTING_MAIL", "")
 
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 

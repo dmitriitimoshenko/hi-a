@@ -2,7 +2,7 @@ import logging
 import re
 from email.header import decode_header, make_header
 from email.utils import getaddresses
-from app.kafka_client import KafkaClient
+from app.bus import BusClient
 
 logging.basicConfig(level=logging.INFO)
 
@@ -10,11 +10,11 @@ logging.basicConfig(level=logging.INFO)
 class NewMailHandler:
     def __init__(
         self,
-        kafka_client: KafkaClient,
+        bus_client: BusClient,
         topic: str,
         preview_chars: int = 5000,
     ) -> None:
-        self._kafka_client = kafka_client
+        self._bus_client = bus_client
         self._topic = topic
         self._preview_chars = preview_chars
         self._logger = logging.getLogger(__name__)
@@ -215,10 +215,10 @@ class NewMailHandler:
             "content_type": content_type,
             "ics_files": ics_files,
         }
-        self._logger.info(f"Sending this to kafka {value}")
+        self._logger.info(f"Sending this to bus {value}")
 
-        self._kafka_client.publish(topic=self._topic, key=uid, value=value)
+        self._bus_client.publish(topic=self._topic, key=uid, value=value)
 
         self._logger.info(
-            "Email [%d] processed and sent to Kafka topic '%s'", uid, self._topic
+            "Email [%d] processed and sent to bus stream '%s'", uid, self._topic
         )

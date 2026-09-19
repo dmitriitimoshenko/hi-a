@@ -13,10 +13,10 @@ class Config:
     )
     GSA_TIMEOUT = float(os.getenv("GSA_TIMEOUT", "30.0"))
 
-    KAFKA_SERVER = os.getenv("KAFKA_SERVER", "")
-    KAFKA_CLIENT_ID = os.getenv("KAFKA_CLIENT_ID", "")
-    KAFKA_CONSUMER_GROUP = os.getenv("KAFKA_CONSUMER_GROUP", "")
-    KAFKA_TOPIC_FEEDBACK = os.getenv("KAFKA_TOPIC_FEEDBACK", "")
+    REDIS_URL = os.getenv("REDIS_URL", "")
+    STREAM_CONSUMER_ID = os.getenv("STREAM_CONSUMER_ID", "")
+    STREAM_GROUP = os.getenv("STREAM_GROUP", "")
+    STREAM_FEEDBACK = os.getenv("STREAM_FEEDBACK", "")
 
     HUNGARIAN_MIN_MATCH_SCORE = float(
         os.getenv("HUNGARIAN_MIN_MATCH_SCORE", "0.5")

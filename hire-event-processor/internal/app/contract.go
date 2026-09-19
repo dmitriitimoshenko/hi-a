@@ -3,17 +3,17 @@ package app
 import (
 	"context"
 
-	kafkaclient "github.com/dmitriitimoshenko/hi-a/hire-event-processor/internal/app/kafka"
+	busclient "github.com/dmitriitimoshenko/hi-a/hire-event-processor/internal/app/bus"
 )
 
 type interestingMailHandler interface {
-	Handle(ctx context.Context, message kafkaclient.Message) error
+	Handle(ctx context.Context, message busclient.Message) error
 }
 
 type applicationUpdateHandler interface {
-	Handle(ctx context.Context, message kafkaclient.Message) error
+	Handle(ctx context.Context, message busclient.Message) error
 }
 
 type applicationSyncHandler interface {
-	Handle(ctx context.Context, message kafkaclient.Message) error
+	Handle(ctx context.Context, message busclient.Message) error
 }

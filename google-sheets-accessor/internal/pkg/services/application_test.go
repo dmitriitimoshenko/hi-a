@@ -34,10 +34,10 @@ func newApplicationService(
 	db *gorm.DB,
 	repo *mocks.ApplicationRepositoryMock,
 	sheetsSvc *mocks.SheetsServiceMock,
-	kafka *mocks.KafkaPublisherMock,
+	busPublisher *mocks.BusPublisherMock,
 	salary *mocks.SalaryServiceMock,
 ) *services.ApplicationService {
-	return services.NewApplicationService(db, newTestLogger(), kafka, sheetsSvc, repo, salary)
+	return services.NewApplicationService(db, newTestLogger(), busPublisher, sheetsSvc, repo, salary)
 }
 
 func sampleApplication(now time.Time) *models.Application {
@@ -1074,7 +1074,7 @@ func TestApplicationServiceGetMaxRowID(t *testing.T) {
 func TestApplicationServiceFetch(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv(services.KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING, "topic")
+	os.Setenv(services.STREAM_ADD_APPLICATION_EMBEDDING, "topic")
 
 	now := time.Now().UTC().Truncate(time.Second)
 
@@ -1082,7 +1082,7 @@ func TestApplicationServiceFetch(t *testing.T) {
 		name        string
 		setupRepo   func(repo *mocks.ApplicationRepositoryMock)
 		setupSheets func(svc *mocks.SheetsServiceMock)
-		setupKafka  func(kafka *mocks.KafkaPublisherMock)
+		setupBus    func(busPublisher *mocks.BusPublisherMock)
 		db          *gorm.DB
 		expectErr   bool
 		expectZero  bool
@@ -1160,8 +1160,8 @@ func TestApplicationServiceFetch(t *testing.T) {
 						},
 					}, nil).Once()
 			},
-			setupKafka: func(kafka *mocks.KafkaPublisherMock) {
-				kafka.On("Publish", mock.Anything, "topic", mock.Anything, mock.Anything).
+			setupBus: func(busPublisher *mocks.BusPublisherMock) {
+				busPublisher.On("Publish", mock.Anything, "topic", mock.Anything, mock.Anything).
 					Return(errors.New("publish err")).Once()
 			},
 			db:        mockdb.NewTestDB(t),
@@ -1198,8 +1198,8 @@ func TestApplicationServiceFetch(t *testing.T) {
 						},
 					}, nil).Once()
 			},
-			setupKafka: func(kafka *mocks.KafkaPublisherMock) {
-				kafka.On("Publish", mock.Anything, "topic", mock.Anything, mock.Anything).
+			setupBus: func(busPublisher *mocks.BusPublisherMock) {
+				busPublisher.On("Publish", mock.Anything, "topic", mock.Anything, mock.Anything).
 					Return(nil).Once()
 			},
 			db: mockdb.NewTestDB(t),
@@ -1221,9 +1221,9 @@ func TestApplicationServiceFetch(t *testing.T) {
 				tt.setupSheets(sheetsSvc)
 			}
 
-			kafka := &mocks.KafkaPublisherMock{}
-			if tt.setupKafka != nil {
-				tt.setupKafka(kafka)
+			busPublisher := &mocks.BusPublisherMock{}
+			if tt.setupBus != nil {
+				tt.setupBus(busPublisher)
 			}
 
 			db := tt.db
@@ -1231,7 +1231,7 @@ func TestApplicationServiceFetch(t *testing.T) {
 				db = mockdb.NewTestDB(t)
 			}
 
-			service := newApplicationService(db, repo, sheetsSvc, kafka, nil)
+			service := newApplicationService(db, repo, sheetsSvc, busPublisher, nil)
 
 			appCount, salaryCount, err := service.Fetch(context.Background())
 
@@ -1249,7 +1249,7 @@ func TestApplicationServiceFetch(t *testing.T) {
 
 			repo.AssertExpectations(t)
 			sheetsSvc.AssertExpectations(t)
-			kafka.AssertExpectations(t)
+			busPublisher.AssertExpectations(t)
 		})
 	}
 }

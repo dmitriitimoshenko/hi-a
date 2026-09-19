@@ -39,9 +39,9 @@ func NewKafkaServer(
 }
 
 func (s *KafkaServer) Run(ctx context.Context) error {
-	consumeTopicsHandlers := map[string]func(ctx context.Context, message kafkaclient.Message) error{
-		os.Getenv("KAFKA_TOPIC_HIRE_EVENT"):                  s.hireEventHandler.Handle,
-		os.Getenv("KAFKA_TOPIC_APPLICATIONS_SYNC_PROCESSED"): s.applicationSyncProcessedHandler.Handle,
+	consumeTopicsHandlers := s.consumeTopicsHandlers()
+	if len(consumeTopicsHandlers) == 0 {
+		return errors.New("no kafka consume topics configured")
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -81,6 +81,28 @@ func (s *KafkaServer) Run(ctx context.Context) error {
 	}
 
 	return g.Wait()
+}
+
+// consumeTopicsHandlers skips unset topics. Building the map straight from
+// os.Getenv would subscribe to a topic named "" when a variable is missing,
+// and two missing variables would collide on the same key, silently dropping
+// a handler.
+func (s *KafkaServer) consumeTopicsHandlers() map[string]func(context.Context, kafkaclient.Message) error {
+	consumeTopicsHandlers := map[string]func(context.Context, kafkaclient.Message) error{}
+
+	if topic := os.Getenv(KAFKA_TOPIC_HIRE_EVENT); topic != "" {
+		consumeTopicsHandlers[topic] = s.hireEventHandler.Handle
+	} else {
+		s.logger.Warn("topic is not configured, consumer disabled", slog.String("env", KAFKA_TOPIC_HIRE_EVENT))
+	}
+
+	if topic := os.Getenv(KAFKA_TOPIC_APPLICATIONS_SYNC_PROCESSED); topic != "" {
+		consumeTopicsHandlers[topic] = s.applicationSyncProcessedHandler.Handle
+	} else {
+		s.logger.Warn("topic is not configured, consumer disabled", slog.String("env", KAFKA_TOPIC_APPLICATIONS_SYNC_PROCESSED))
+	}
+
+	return consumeTopicsHandlers
 }
 
 func (s *KafkaServer) Close(ctx context.Context) error {

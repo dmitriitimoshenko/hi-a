@@ -21,6 +21,10 @@ jobs:
             dir: telegram-bot
           - name: Hire Event Notifier
             dir: hire-event-notifier
+          - name: Hire Event Processor
+            dir: hire-event-processor
+          - name: Application Embedding Generator
+            dir: application-embedding-generator
     steps:
       - name: Checkout
         uses: actions/checkout@v4.2.2

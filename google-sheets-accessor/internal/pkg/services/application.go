@@ -21,32 +21,32 @@ import (
 	"gorm.io/gorm"
 )
 
-const KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING = "KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING"
+const STREAM_ADD_APPLICATION_EMBEDDING = "STREAM_ADD_APPLICATION_EMBEDDING"
 
 type ApplicationService struct {
-	db             *gorm.DB
-	logger         *slog.Logger
-	kafkaPublisher kafkaPublisher
-	sheets         sheetsService
-	repository     applicationRepository
-	salaryService  salaryService
+	db            *gorm.DB
+	logger        *slog.Logger
+	busPublisher  busPublisher
+	sheets        sheetsService
+	repository    applicationRepository
+	salaryService salaryService
 }
 
 func NewApplicationService(
 	db *gorm.DB,
 	logger *slog.Logger,
-	kafkaPublisher kafkaPublisher,
+	busPublisher busPublisher,
 	sheets sheetsService,
 	repository applicationRepository,
 	salaryService salaryService,
 ) *ApplicationService {
 	return &ApplicationService{
-		db:             db,
-		logger:         logger,
-		kafkaPublisher: kafkaPublisher,
-		sheets:         sheets,
-		repository:     repository,
-		salaryService:  salaryService,
+		db:            db,
+		logger:        logger,
+		busPublisher:  busPublisher,
+		sheets:        sheets,
+		repository:    repository,
+		salaryService: salaryService,
 	}
 }
 
@@ -842,7 +842,7 @@ func (s *ApplicationService) mapSheetApplicationToModelAndSave(
 		}
 
 		g.Go(func() error {
-			kafkaPayload := []byte(
+			busPayload := []byte(
 				fmt.Sprintf(
 					"COMPANY %s TITLE %s EMPLOYMENT TYPE %s WORK MODE %s META %s",
 					dbApplication.Company,
@@ -853,17 +853,17 @@ func (s *ApplicationService) mapSheetApplicationToModelAndSave(
 				),
 			)
 
-			err := s.kafkaPublisher.Publish(
+			err := s.busPublisher.Publish(
 				gctx,
-				os.Getenv(KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING),
+				os.Getenv(STREAM_ADD_APPLICATION_EMBEDDING),
 				[]byte(strconv.Itoa(int(dbApplication.ID))),
-				kafkaPayload,
+				busPayload,
 			)
 
 			if err != nil {
 				return fmt.Errorf(
-					"failed to publish to KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING %s: %w",
-					KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING,
+					"failed to publish to STREAM_ADD_APPLICATION_EMBEDDING %s: %w",
+					STREAM_ADD_APPLICATION_EMBEDDING,
 					err,
 				)
 			}

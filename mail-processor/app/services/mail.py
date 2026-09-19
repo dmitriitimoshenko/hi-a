@@ -13,9 +13,9 @@ from app.integrations.open_ai.service.service import (
     OpenAIService,
     provide_openai_service,
 )
-from app.kafka_client.client import (
-    KafkaClient,
-    provide_kafka_client,
+from app.bus.client import (
+    BusClient,
+    provide_bus_client,
 )
 from app.mail_mapper_client import (
     MailMapperClient,
@@ -49,14 +49,14 @@ class MailService:
     def __init__(
         self,
         db: Session,
-        kafka_client: KafkaClient,
+        bus_client: BusClient,
         openai_service: OpenAIService,
         *,
         mapper_client: MailMapperClient | None = None,
         config: Config | None = None,
     ) -> None:
         self._db = db
-        self._kafka_client = kafka_client
+        self._bus_client = bus_client
         self._openai_service = openai_service
         self._mapper_client = mapper_client or get_mail_mapper_client()
         self._config = config or Config()
@@ -66,9 +66,9 @@ class MailService:
         )
         self._logger = logging.getLogger(__name__)
 
-        self._interesting_mail_topic = self._config.KAFKA_TOPIC_INTERESTING_MAIL or ""
+        self._interesting_mail_topic = self._config.STREAM_INTERESTING_MAIL or ""
         if not self._interesting_mail_topic:
-            message = "KAFKA_TOPIC_INTERESTING_MAIL value is not set"
+            message = "STREAM_INTERESTING_MAIL value is not set"
             self._logger.error(message)
             raise ValueError(message)
 
@@ -110,7 +110,7 @@ class MailService:
 
         for email_instance, mapping in batch_mappings:
             mappings.append(mapping)
-            self._logger.info("Sending this to kafka: %s", mapping)
+            self._logger.info("Sending this to bus: %s", mapping)
             self._publish_mapping(email_instance, mapping)
             submitted_emails_amount += 1
 
@@ -330,23 +330,19 @@ class MailService:
         email: EmbdLrn,
         mapping: EmailToApplicationMappingDTO,
     ) -> None:
-        def _on_delivery(err, msg) -> None:
-            self._logger.info("kafka_publish_callback started")
-            if err:
-                self._logger.error("Failed to publish message to Kafka: %s", err)
-                return
+        try:
+            self._bus_client.publish(
+                self._interesting_mail_topic,
+                email.id,
+                mapping.to_dict(),
+            )
+        except Exception as e:
+            self._logger.error("Failed to publish message to bus: %s", e)
 
-            self._logger.info("Successfully published message to Kafka: %s", msg)
-            self._mark_email_as_sent(email.id)
+            return
 
-        self._kafka_client.publish(
-            self._interesting_mail_topic,
-            email.id,
-            mapping.to_dict(),
-            on_delivery=_on_delivery,
-        )
-
-        self._kafka_client.flush(5.0)
+        self._logger.info("Successfully published message to bus: %s", email.id)
+        self._mark_email_as_sent(email.id)
 
     def _mark_email_as_sent(self, email_id: int) -> None:
         try:
@@ -420,7 +416,7 @@ class MailService:
 
 def get_mail_service(
     db: Session = Depends(get_db),
-    kafka_client: KafkaClient = Depends(provide_kafka_client),
+    bus_client: BusClient = Depends(provide_bus_client),
     openai_service: OpenAIService = Depends(provide_openai_service),
     mapper_client: MailMapperClient = Depends(get_mail_mapper_client),
 ) -> MailService:
@@ -428,7 +424,7 @@ def get_mail_service(
 
     return MailService(
         db,
-        kafka_client,
+        bus_client,
         openai_service,
         mapper_client=mapper_client,
         config=config,

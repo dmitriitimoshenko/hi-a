@@ -1,10 +1,7 @@
 import logging
 import signal
 import threading
-import time
-from typing import Any, Awaitable, Callable
-
-from confluent_kafka import Message
+from typing import Awaitable, Callable
 
 from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -12,9 +9,9 @@ from fastapi.routing import APIRoute
 from starlette.middleware.cors import CORSMiddleware
 
 from app.config import Config
-from app.kafka_client import KafkaClient, KafkaConfig
+from app.bus import BusClient, BusMessage, get_bus_config
 from app.router import api_router
-from app.router.handlers.kafka import get_kafka_feedback_handler
+from app.router.handlers.bus import get_bus_feedback_handler
 from app.services.feedback import get_mail_mapping_feedback_service
 
 logging.basicConfig(level=logging.INFO)
@@ -23,113 +20,86 @@ logger.info("Starting Mail Mapper service...")
 
 config = Config()
 
-kafka_topic_feedback = config.KAFKA_TOPIC_FEEDBACK
+bus_topic_feedback = config.STREAM_FEEDBACK
 
-kafka_client: KafkaClient | None = None
+bus_client: BusClient | None = None
 feedback_handler = None
-kafka_retry_limit = 30
-KAFKA_RETRY_DELAY_SECONDS = 1.0
+bus_retry_limit = 30
+BUS_RETRY_DELAY_SECONDS = 1.0
 
-if kafka_topic_feedback:
-    if not config.KAFKA_SERVER:
-        message = "KAFKA_SERVER is not set"
+if bus_topic_feedback:
+    if not config.REDIS_URL:
+        message = "REDIS_URL is not set"
         raise ValueError(message)
-    if not config.KAFKA_CLIENT_ID:
-        message = "KAFKA_CLIENT_ID is not set"
-        raise ValueError(message)
-    if not config.KAFKA_CONSUMER_GROUP:
-        message = "KAFKA_CONSUMER_GROUP is not set"
+    if not config.STREAM_GROUP:
+        message = "STREAM_GROUP is not set"
         raise ValueError(message)
 
-    kafka_config = KafkaConfig(
-        bootstrap_servers=config.KAFKA_SERVER,
-        client_id=config.KAFKA_CLIENT_ID,
-        group_id=config.KAFKA_CONSUMER_GROUP,
-    )
-    kafka_retry_limit = kafka_config.kafka_retries
+    bus_config = get_bus_config()
+    bus_retry_limit = bus_config.retries
 
-    kafka_client = KafkaClient(kafka_config)
+    bus_client = BusClient(bus_config, config.STREAM_GROUP)
     feedback_service = get_mail_mapping_feedback_service()
-    feedback_handler = get_kafka_feedback_handler(feedback_service)
+    feedback_handler = get_bus_feedback_handler(feedback_service)
 else:
     logger.warning(
-        "KAFKA_TOPIC_FEEDBACK is not configured; feedback consumer is disabled",
+        "STREAM_FEEDBACK is not configured; feedback consumer is disabled",
     )
 
 _stop_event = threading.Event()
 _consumer_thread: threading.Thread | None = None
 
 
-def _log_feedback_message(
-    key: Any,
-    value: Any,
-    msg: Message,
-) -> None:
+def _log_feedback_message(message: BusMessage) -> None:
     logger.debug(
-        "Consumed feedback message key=%s partition=%s offset=%s value_type=%s",
-        key,
-        msg.partition(),
-        msg.offset(),
-        type(value).__name__,
+        "Consumed feedback message key=%s stream=%s id=%s value_type=%s",
+        message.key,
+        message.topic,
+        message.entry_id,
+        type(message.value).__name__,
     )
 
 
 def _consume_feedback_messages() -> None:
-    if kafka_client is None or feedback_handler is None:
-        logger.info("Feedback consumer loop skipped because Kafka is not configured")
+    if bus_client is None or feedback_handler is None:
+        logger.info("Feedback consumer loop skipped because the bus is not configured")
 
         return
 
-    topic = kafka_topic_feedback
+    topic = bus_topic_feedback
     if not topic:
         logger.warning("Feedback topic is empty; consumer loop will not start")
 
         return
 
-    kafka_client.subscribe([topic])
-    logger.info("Kafka subscribed to feedback topic: %s", topic)
-
-    metadata = kafka_client.list_topics(timeout=10.0)
-    if topic not in metadata.topics:
-        logger.error(
-            "Topic '%s' not found. Available topics: %s",
-            topic,
-            list(metadata.topics.keys()),
-        )
-    else:
-        topic_metadata = metadata.topics[topic]
-        if topic_metadata.error is not None:
-            logger.error(
-                "Topic '%s' metadata error: %s",
-                topic,
-                topic_metadata.error,
-            )
-        else:
-            partitions = sorted(p.id for p in topic_metadata.partitions.values())
-            logger.info("Topic '%s' partitions: %s", topic, partitions)
+    bus_client.subscribe([topic])
+    logger.info("Bus subscribed to feedback stream: %s", topic)
 
     while not _stop_event.is_set():
-        item = kafka_client.poll_once(timeout=1.0)
-        if not item:
+        message = bus_client.poll_once(timeout=1.0)
+        if message is None:
             continue
 
-        key, value, _headers, msg = item
-        _log_feedback_message(key, value, msg)
+        _log_feedback_message(message)
 
         try:
-            if isinstance(value, dict):
-                feedback_handler.handle(value)
+            if isinstance(message.value, dict):
+                feedback_handler.handle(message.value)
             else:
                 logger.error(
                     "Feedback message payload is not a dict: %s",
-                    type(value).__name__,
+                    type(message.value).__name__,
                 )
         except Exception:
             logger.exception("Feedback handler raised an exception")
 
+            continue
+
+        bus_client.commit(message)
+
 
 def _feedback_consumer_loop() -> None:
-    for attempt in range(1, kafka_retry_limit + 1):
+    for attempt in range(1, bus_retry_limit + 1):
         if _stop_event.is_set():
             return
 
@@ -137,7 +107,7 @@ def _feedback_consumer_loop() -> None:
             logger.info(
                 "Starting feedback consumer attempt %s/%s",
                 attempt,
-                kafka_retry_limit,
+                bus_retry_limit,
             )
             _consume_feedback_messages()
 
@@ -146,29 +116,26 @@ def _feedback_consumer_loop() -> None:
             logger.exception(
                 "Feedback consumer loop crashed on attempt %s/%s: %s",
                 attempt,
-                kafka_retry_limit,
+                bus_retry_limit,
                 e,
             )
         finally:
-            if kafka_client is not None:
-                kafka_client.close_consumer()
-
             logger.info("Feedback consumer loop stopped")
 
-        if attempt == kafka_retry_limit:
+        if attempt == bus_retry_limit:
             logger.error(
                 "Feedback consumer stopped after %s attempts",
-                kafka_retry_limit,
+                bus_retry_limit,
             )
 
             return
 
-        if _stop_event.wait(KAFKA_RETRY_DELAY_SECONDS):
+        if _stop_event.wait(BUS_RETRY_DELAY_SECONDS):
             return
 
 
 def start_consumer_thread() -> None:
-    if kafka_client is None or feedback_handler is None:
+    if bus_client is None or feedback_handler is None:
         return
 
     global _consumer_thread
@@ -189,9 +156,8 @@ def stop_consumer_thread() -> None:
     if _consumer_thread and _consumer_thread.is_alive():
         _consumer_thread.join(timeout=10)
 
-    if kafka_client is not None:
-        kafka_client.close_consumer()
-        kafka_client.close_producer()
+    if bus_client is not None:
+        bus_client.close()
 
 
 def _handle_sigterm(*_: object) -> None:
@@ -199,7 +165,7 @@ def _handle_sigterm(*_: object) -> None:
     stop_consumer_thread()
 
 
-if kafka_topic_feedback:
+if bus_topic_feedback:
     signal.signal(signal.SIGTERM, _handle_sigterm)
     signal.signal(signal.SIGINT, _handle_sigterm)
     start_consumer_thread()

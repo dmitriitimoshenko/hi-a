@@ -33,6 +33,3 @@ class RedisClient:
     def exists(self, key: str) -> bool:
         self._logger.debug("Checking existence of key %s", key)
         return self._client.exists(key) > 0
-
-    def flush_all(self):
-        self._client.flushall()

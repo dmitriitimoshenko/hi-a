@@ -11,36 +11,21 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
-	"github.com/segmentio/kafka-go"
+	"github.com/hire-insight-ai-assistant/application-embedding-generator/internal/app/bus"
 )
 
-const kafkaMaxAttempts = 30
-const kafkaReaderTimeoutLogInterval = time.Minute
-
 type config struct {
-	KafkaBrokers          []string
-	KafkaClientID         string
-	KafkaConsumerGroup    string
-	SourceTopic           string
-	DestinationTopic      string
-	OpenAIKey             string
-	OpenAIModel           string
-	OpenAIBaseURL         string
-	Port                  string
-	MaxRetryInterval      time.Duration
-	ProducerBatchSize     int
-	ProducerBatchBytes    int
-	ProducerBatchTimeout  time.Duration
-	ConsumerMinBytes      int
-	ConsumerMaxBytes      int
-	ConsumerMaxWait       time.Duration
-	ShutdownGraceDuration time.Duration
+	SourceTopic      string
+	DestinationTopic string
+	OpenAIKey        string
+	OpenAIModel      string
+	OpenAIBaseURL    string
+	Port             string
+	MaxRetryInterval time.Duration
 }
 
 func loadConfig() (config, error) {
@@ -49,12 +34,9 @@ func loadConfig() (config, error) {
 	}
 
 	required := map[string]string{
-		"KAFKA_SERVER":                           getEnv("KAFKA_SERVER"),
-		"KAFKA_CLIENT_ID":                        getEnv("KAFKA_CLIENT_ID"),
-		"KAFKA_CONSUMER_GROUP":                   getEnv("KAFKA_CONSUMER_GROUP"),
-		"KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING":  getEnv("KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING"),
-		"KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING": getEnv("KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING"),
-		"OPENAI_API_KEY":                         getEnv("OPENAI_API_KEY"),
+		"STREAM_ADD_APPLICATION_EMBEDDING":  getEnv("STREAM_ADD_APPLICATION_EMBEDDING"),
+		"STREAM_SAVE_APPLICATION_EMBEDDING": getEnv("STREAM_SAVE_APPLICATION_EMBEDDING"),
+		"OPENAI_API_KEY":                    getEnv("OPENAI_API_KEY"),
 	}
 
 	for key, value := range required {
@@ -64,34 +46,13 @@ func loadConfig() (config, error) {
 	}
 
 	cfg := config{
-		KafkaBrokers:          nil,
-		KafkaClientID:         required["KAFKA_CLIENT_ID"],
-		KafkaConsumerGroup:    required["KAFKA_CONSUMER_GROUP"],
-		SourceTopic:           required["KAFKA_TOPIC_ADD_APPLICATION_EMBEDDING"],
-		DestinationTopic:      required["KAFKA_TOPIC_SAVE_APPLICATION_EMBEDDING"],
-		OpenAIKey:             required["OPENAI_API_KEY"],
-		OpenAIModel:           getEnv("OPENAI_MODEL"),
-		OpenAIBaseURL:         getEnv("OPENAI_BASE_URL"),
-		Port:                  getEnv("PORT"),
-		MaxRetryInterval:      10 * time.Second,
-		ProducerBatchSize:     1,
-		ProducerBatchBytes:    1 << 20,
-		ProducerBatchTimeout:  time.Second,
-		ConsumerMinBytes:      1,
-		ConsumerMaxBytes:      10 * 1024 * 1024,
-		ConsumerMaxWait:       500 * time.Millisecond,
-		ShutdownGraceDuration: 15 * time.Second,
-	}
-
-	brokersRaw := strings.Split(required["KAFKA_SERVER"], ",")
-	for _, broker := range brokersRaw {
-		trimmed := strings.TrimSpace(broker)
-		if trimmed != "" {
-			cfg.KafkaBrokers = append(cfg.KafkaBrokers, trimmed)
-		}
-	}
-	if len(cfg.KafkaBrokers) == 0 {
-		return config{}, errors.New("no valid Kafka brokers provided")
+		SourceTopic:      required["STREAM_ADD_APPLICATION_EMBEDDING"],
+		DestinationTopic: required["STREAM_SAVE_APPLICATION_EMBEDDING"],
+		OpenAIKey:        required["OPENAI_API_KEY"],
+		OpenAIModel:      getEnv("OPENAI_MODEL"),
+		OpenAIBaseURL:    getEnv("OPENAI_BASE_URL"),
+		Port:             getEnv("PORT"),
+		MaxRetryInterval: 10 * time.Second,
 	}
 
 	if cfg.OpenAIModel == "" {
@@ -105,63 +66,12 @@ func loadConfig() (config, error) {
 		cfg.Port = "8089"
 	}
 
-	parsePositiveInt := func(value string) (int, bool) {
-		parsed, err := strconv.Atoi(value)
-		if err != nil || parsed <= 0 {
-			return 0, false
-		}
-		return parsed, true
-	}
-
-	if v := getEnv("KAFKA_PRODUCER_BATCH_SIZE"); v != "" {
-		if parsed, ok := parsePositiveInt(v); ok {
-			cfg.ProducerBatchSize = parsed
-		}
-	}
-
-	if v := getEnv("KAFKA_PRODUCER_BATCH_BYTES"); v != "" {
-		if parsed, ok := parsePositiveInt(v); ok {
-			cfg.ProducerBatchBytes = parsed
-		}
-	}
-
-	if v := getEnv("KAFKA_PRODUCER_BATCH_TIMEOUT_MS"); v != "" {
-		if parsed, ok := parsePositiveInt(v); ok {
-			cfg.ProducerBatchTimeout = time.Duration(parsed) * time.Millisecond
-		}
-	}
-
-	if v := getEnv("KAFKA_CONSUMER_MIN_BYTES"); v != "" {
-		if parsed, ok := parsePositiveInt(v); ok {
-			cfg.ConsumerMinBytes = parsed
-		}
-	}
-
-	if v := getEnv("KAFKA_CONSUMER_MAX_BYTES"); v != "" {
-		if parsed, ok := parsePositiveInt(v); ok && parsed > cfg.ConsumerMinBytes {
-			cfg.ConsumerMaxBytes = parsed
-		}
-	}
-
-	if v := getEnv("KAFKA_CONSUMER_MAX_WAIT_MS"); v != "" {
-		if parsed, ok := parsePositiveInt(v); ok {
-			cfg.ConsumerMaxWait = time.Duration(parsed) * time.Millisecond
-		}
-	}
-
-	if v := getEnv("SHUTDOWN_GRACE_SECONDS"); v != "" {
-		if parsed, ok := parsePositiveInt(v); ok {
-			cfg.ShutdownGraceDuration = time.Duration(parsed) * time.Second
-		}
-	}
-
 	return cfg, nil
 }
 
 type embeddingGenerator struct {
 	cfg        config
-	reader     *kafka.Reader
-	writer     *kafka.Writer
+	bus        *bus.Client
 	httpClient *http.Client
 	logger     *log.Logger
 }
@@ -186,142 +96,71 @@ func (e *permanentError) Error() string {
 	return fmt.Sprintf("openai returned status %d: %s", e.StatusCode, e.Body)
 }
 
-type throttledKafkaReaderLogger struct {
-	logger             *log.Logger
-	mutex              sync.Mutex
-	lastTimeoutLogAt   time.Time
-	suppressedTimeouts int
-}
-
-func (l *throttledKafkaReaderLogger) log(msg string, args ...interface{}) {
-	formattedMessage := fmt.Sprintf(msg, args...)
-	if !l.isTransientKafkaReaderTimeout(formattedMessage) {
-		l.logger.Printf("kafka reader error: %s", formattedMessage)
-
-		return
-	}
-
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
-	now := time.Now()
-	if l.lastTimeoutLogAt.IsZero() || now.Sub(l.lastTimeoutLogAt) >= kafkaReaderTimeoutLogInterval {
-		if l.suppressedTimeouts > 0 {
-			formattedMessage = fmt.Sprintf("%s (suppressed %d similar timeout logs)", formattedMessage, l.suppressedTimeouts)
-		}
-
-		l.lastTimeoutLogAt = now
-		l.suppressedTimeouts = 0
-
-		l.logger.Printf("kafka reader error: %s", formattedMessage)
-
-		return
-	}
-
-	l.suppressedTimeouts++
-}
-
-func (l *throttledKafkaReaderLogger) isTransientKafkaReaderTimeout(msg string) bool {
-	return strings.Contains(msg, "unknown error reading partition") && strings.Contains(msg, "i/o timeout")
-}
-
-func newEmbeddingGenerator(cfg config, logger *log.Logger) *embeddingGenerator {
-	readerLogger := &throttledKafkaReaderLogger{logger: logger}
-
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:     cfg.KafkaBrokers,
-		GroupID:     cfg.KafkaConsumerGroup,
-		Topic:       cfg.SourceTopic,
-		MinBytes:    cfg.ConsumerMinBytes,
-		MaxBytes:    cfg.ConsumerMaxBytes,
-		MaxWait:     cfg.ConsumerMaxWait,
-		MaxAttempts: kafkaMaxAttempts,
-		StartOffset: kafka.FirstOffset,
-		Logger:      kafka.LoggerFunc(func(msg string, args ...interface{}) {}),
-		ErrorLogger: kafka.LoggerFunc(readerLogger.log),
-	})
-
-	writer := &kafka.Writer{
-		Addr:                   kafka.TCP(cfg.KafkaBrokers...),
-		Topic:                  cfg.DestinationTopic,
-		Balancer:               &kafka.Hash{},
-		AllowAutoTopicCreation: false,
-		BatchSize:              cfg.ProducerBatchSize,
-		BatchBytes:             int64(cfg.ProducerBatchBytes),
-		BatchTimeout:           cfg.ProducerBatchTimeout,
-		MaxAttempts:            kafkaMaxAttempts,
-		Logger:                 kafka.LoggerFunc(func(msg string, args ...interface{}) {}),
-		ErrorLogger: kafka.LoggerFunc(func(msg string, args ...interface{}) {
-			logger.Printf("kafka writer error: "+msg, args...)
-		}),
-	}
-
-	return &embeddingGenerator{
+func newEmbeddingGenerator(cfg config, busClient *bus.Client, logger *log.Logger) *embeddingGenerator {
+	generator := &embeddingGenerator{
 		cfg:        cfg,
-		reader:     reader,
-		writer:     writer,
+		bus:        busClient,
 		httpClient: &http.Client{Timeout: 35 * time.Second},
 		logger:     logger,
 	}
+
+	return generator
 }
 
 func (g *embeddingGenerator) run(ctx context.Context) error {
 	defer func() {
-		if err := g.reader.Close(); err != nil {
-			g.logger.Printf("close reader error: %v", err)
-		}
-		if err := g.writer.Close(); err != nil {
-			g.logger.Printf("close writer error: %v", err)
+		if err := g.bus.Close(ctx); err != nil {
+			g.logger.Printf("close bus error: %v", err)
 		}
 	}()
 
 	g.logger.Printf("service started: consuming from %s, producing to %s", g.cfg.SourceTopic, g.cfg.DestinationTopic)
 
-	for {
-		msg, err := g.reader.ReadMessage(ctx)
-		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return nil
-			}
-			g.logger.Printf("read message error: %v", err)
-			continue
-		}
-
-		appID := strings.TrimSpace(string(msg.Key))
-		if appID == "" {
-			g.logger.Printf("skip message with empty application id, offset=%d", msg.Offset)
-			continue
-		}
-
-		payload := strings.TrimSpace(string(msg.Value))
-		if payload == "" {
-			g.logger.Printf("skip message with empty payload, application_id=%s offset=%d", appID, msg.Offset)
-			continue
-		}
-
-		embedding, err := g.generateEmbedding(ctx, payload)
-		if err != nil {
-			g.logger.Printf("embedding failed for application_id=%s: %v", appID, err)
-			continue
-		}
-
-		embeddingBytes, err := json.Marshal(embedding)
-		if err != nil {
-			g.logger.Printf("failed to marshal embedding for application_id=%s: %v", appID, err)
-			continue
-		}
-
-		err = g.writer.WriteMessages(ctx, kafka.Message{
-			Key:   []byte(appID),
-			Value: embeddingBytes,
-		})
-		if err != nil {
-			g.logger.Printf("failed to publish embedding for application_id=%s: %v", appID, err)
-			continue
-		}
-
-		g.logger.Printf("embedding generated for application_id=%s (offset=%d)", appID, msg.Offset)
+	err := g.bus.Consume(ctx, g.cfg.SourceTopic, g.handle)
+	if err != nil {
+		return err
 	}
+
+	return nil
+}
+
+// handle returns nil for permanently malformed entries so they are acknowledged
+// and dropped; transient failures return an error and stay pending for retry.
+func (g *embeddingGenerator) handle(ctx context.Context, message bus.Message) error {
+	appID := strings.TrimSpace(string(message.Key))
+	if appID == "" {
+		g.logger.Printf("skip message with empty application id")
+
+		return nil
+	}
+
+	payload := strings.TrimSpace(string(message.Value))
+	if payload == "" {
+		g.logger.Printf("skip message with empty payload, application_id=%s", appID)
+
+		return nil
+	}
+
+	embedding, err := g.generateEmbedding(ctx, payload)
+	if err != nil {
+		return fmt.Errorf("embedding failed for application_id=%s: %w", appID, err)
+	}
+
+	embeddingBytes, err := json.Marshal(embedding)
+	if err != nil {
+		g.logger.Printf("failed to marshal embedding for application_id=%s: %v", appID, err)
+
+		return nil
+	}
+
+	err = g.bus.Publish(ctx, g.cfg.DestinationTopic, []byte(appID), embeddingBytes)
+	if err != nil {
+		return fmt.Errorf("failed to publish embedding for application_id=%s: %w", appID, err)
+	}
+
+	g.logger.Printf("embedding generated for application_id=%s", appID)
+
+	return nil
 }
 
 func (g *embeddingGenerator) generateEmbedding(ctx context.Context, content string) ([]float64, error) {
@@ -536,7 +375,17 @@ func main() {
 
 	startHealthServer(ctx, cfg.Port, logger)
 
-	generator := newEmbeddingGenerator(cfg, logger)
+	busCfg, err := bus.LoadConfig()
+	if err != nil {
+		log.Fatalf("bus config error: %v", err)
+	}
+
+	busClient, err := bus.New(busCfg)
+	if err != nil {
+		log.Fatalf("bus client error: %v", err)
+	}
+
+	generator := newEmbeddingGenerator(cfg, busClient, logger)
 
 	runErr := generator.run(ctx)
 	if runErr != nil {

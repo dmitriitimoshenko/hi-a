@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from app.kafka_client import KafkaClient
+from app.bus import BusClient
 
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ class ApplicationDiffJobConfig:
     sheet_id: str | None
     sheet_page: str
     base_url: str
-    kafka_topic_applications_sync: str
+    stream_applications_sync: str
 
 
 _CONFIG: ApplicationDiffJobConfig | None = None
@@ -44,8 +44,8 @@ def get_application_diff_job_config() -> ApplicationDiffJobConfig:
             "GSA_BASE_URL",
             "http://google-sheets-accessor:8083",
         )
-        kafka_topic_applications_sync = os.getenv(
-            "KAFKA_TOPIC_APPLICATIONS_SYNC",
+        stream_applications_sync = os.getenv(
+            "STREAM_APPLICATIONS_SYNC",
             "applications-sync-unprocessed",
         )
 
@@ -53,7 +53,7 @@ def get_application_diff_job_config() -> ApplicationDiffJobConfig:
             sheet_id=sheet_id,
             sheet_page=sheet_page,
             base_url=base_url,
-            kafka_topic_applications_sync=kafka_topic_applications_sync,
+            stream_applications_sync=stream_applications_sync,
         )
 
     return _CONFIG
@@ -61,7 +61,7 @@ def get_application_diff_job_config() -> ApplicationDiffJobConfig:
 
 async def run(
     client: httpx.AsyncClient,
-    kafka_client: KafkaClient,
+    bus_client: BusClient,
 ) -> None:
     config = get_application_diff_job_config()
 
@@ -125,14 +125,12 @@ async def run(
             )
 
             _publish_differences(
-                kafka_client,
+                bus_client,
                 config,
                 start_row,
                 end_row,
                 diff_data,
             )
-
-            kafka_client.flush()
 
         if index < batches_count - 1:
             await asyncio.sleep(ITERATION_DELAY_SECONDS)
@@ -257,7 +255,7 @@ async def _request_application_diff(
 
 
 def _publish_differences(
-    kafka_client: KafkaClient,
+    bus_client: BusClient,
     config: ApplicationDiffJobConfig,
     start_row: int,
     end_row: int,
@@ -286,7 +284,7 @@ def _publish_differences(
 
             continue
 
-        payload = _build_kafka_payload(
+        payload = _build_bus_payload(
             entry,
         )
 
@@ -305,14 +303,14 @@ def _publish_differences(
             )
 
         try:
-            kafka_client.publish(
-                topic=config.kafka_topic_applications_sync,
+            bus_client.publish(
+                topic=config.stream_applications_sync,
                 key=key,
                 value=payload,
             )
             logger.info(
                 "Enqueued diff message: topic=%s key=%s row_id=%s company=%s role=%s",
-                config.kafka_topic_applications_sync,
+                config.stream_applications_sync,
                 key,
                 entry.get("row_id"),
                 entry.get("company"),
@@ -323,12 +321,12 @@ def _publish_differences(
                 "Failed to publish diff entry for rows %s-%s to topic %s: %s",
                 start_row,
                 end_row,
-                config.kafka_topic_applications_sync,
+                config.stream_applications_sync,
                 e,
             )
 
 
-def _build_kafka_payload(
+def _build_bus_payload(
     entry: dict,
 ) -> dict:
     detected_at = _utc_now_iso()

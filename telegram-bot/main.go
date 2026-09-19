@@ -8,9 +8,8 @@ import (
 	"syscall"
 
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app"
-	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/kafka"
-	kafkaclient "github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/kafka"
-	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/kafka/handlers"
+	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/bus"
+	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/bus/handlers"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/redis"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/app/tgbt"
 	"github.com/dmitriitimoshenko/hi-a/telegram-bot/internal/pkg/services"
@@ -31,12 +30,12 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	kafkaCfg, err := kafka.LoadConfig()
+	busCfg, err := bus.LoadConfig()
 	if err != nil {
 		return err
 	}
 
-	kafkaClient, err := kafkaclient.New(kafkaCfg)
+	busClient, err := bus.New(busCfg)
 	if err != nil {
 		return err
 	}
@@ -50,7 +49,7 @@ func run() error {
 	}
 	defer redisClient.Close()
 
-	telegramBotHandler := tgbt.NewTelegramBotHandler(logger, redisClient, kafkaClient)
+	telegramBotHandler := tgbt.NewTelegramBotHandler(logger, redisClient, busClient)
 
 	botConfig, err := tgbt.LoadConfig()
 	if err != nil {
@@ -70,8 +69,8 @@ func run() error {
 	notificationHandler := handlers.NewNotificationHandler(logger, redisClient, tgbtService)
 	notificationSyncHandler := handlers.NewNotificationSyncHandler(logger, redisClient, tgbtService)
 
-	kafkaServer := app.NewKafkaServer(
-		kafkaClient,
+	busServer := app.NewBusServer(
+		busClient,
 		logger,
 		notificationHandler,
 		notificationSyncHandler,
@@ -79,9 +78,9 @@ func run() error {
 
 	g, gctx := errgroup.WithContext(ctx)
 
-	defer kafkaServer.Close(ctx)
+	defer busServer.Close(ctx)
 	g.Go(func() error {
-		return kafkaServer.Run(gctx)
+		return busServer.Run(gctx)
 	})
 	g.Go(func() error {
 		b.Start(gctx)

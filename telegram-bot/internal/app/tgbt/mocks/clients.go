@@ -34,11 +34,11 @@ func (m *RedisClientMock) Delete(ctx context.Context, key string) (int64, error)
 	return deleted, args.Error(1)
 }
 
-type KafkaClientMock struct {
+type BusClientMock struct {
 	mock.Mock
 }
 
-func (m *KafkaClientMock) Publish(ctx context.Context, topic string, key []byte, value []byte) error {
+func (m *BusClientMock) Publish(ctx context.Context, topic string, key []byte, value []byte) error {
 	args := m.Called(ctx, topic, key, value)
 
 	return args.Error(0)

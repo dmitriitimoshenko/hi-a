@@ -283,7 +283,10 @@ def main() -> int:
     except Exception as db_error:
         print(f"ERROR: failed to query DB: {db_error}")
         print(
-            "Hint: if running outside Docker, pass --db 'postgresql+psycopg://user:pass@localhost:5432/postgres'"
+            "Hint: Postgres is not published to the host. Either run this inside "
+            "the stack (docker compose exec mail-processor python3.13 ...) or "
+            "temporarily publish the port and pass "
+            "--db 'postgresql+psycopg://admin:password@localhost:5432/mail_processor'"
         )
 
         return 5

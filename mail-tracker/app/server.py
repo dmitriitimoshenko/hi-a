@@ -12,7 +12,7 @@ from app.integrations.gmail.watcher import (
     ImapCredentials,
     ImapWatchConfig,
 )
-from app.kafka_client import KafkaClient, KafkaConfig
+from app.bus import BusClient, get_bus_config
 from app.redis_client import RedisConfig, RedisClient
 from app.router.handlers.new_mail_handler import NewMailHandler
 from app.router import api_router
@@ -23,17 +23,16 @@ logger.info("Starting Mail Tracker service...")
 
 config = Config()
 
-kafka_config = KafkaConfig(
-    bootstrap_servers=config.KAFKA_SERVER or "",
-    client_id=config.KAFKA_CLIENT_ID or "",
-)
-kafka_client = KafkaClient(kafka_config)
+bus_config = get_bus_config()
+assert bus_config.redis_url, "REDIS_URL is not set"
+
+bus_client = BusClient(bus_config)
 
 redis_client = RedisClient(RedisConfig())
 
 new_mail_handler = NewMailHandler(
-    kafka_client,
-    topic=config.KAFKA_TOPIC_NEW_MAIL,
+    bus_client,
+    topic=config.STREAM_NEW_MAIL,
 )
 gmail_user = config.GMAIL_USER
 gmail_app_password = config.GMAIL_APP_PASSWORD

@@ -8,9 +8,8 @@ import (
 	"syscall"
 
 	"github.com/dmitriitimoshenko/hi-a/hire-event-notifier/internal/app"
-	"github.com/dmitriitimoshenko/hi-a/hire-event-notifier/internal/app/kafka"
-	kafkaclient "github.com/dmitriitimoshenko/hi-a/hire-event-notifier/internal/app/kafka"
-	"github.com/dmitriitimoshenko/hi-a/hire-event-notifier/internal/app/kafka/handlers"
+	"github.com/dmitriitimoshenko/hi-a/hire-event-notifier/internal/app/bus"
+	"github.com/dmitriitimoshenko/hi-a/hire-event-notifier/internal/app/bus/handlers"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -26,12 +25,12 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	kafkaCfg, err := kafka.LoadConfig()
+	busCfg, err := bus.LoadConfig()
 	if err != nil {
 		return err
 	}
 
-	kafkaClient, err := kafkaclient.New(kafkaCfg)
+	busClient, err := bus.New(busCfg)
 	if err != nil {
 		return err
 	}
@@ -40,16 +39,16 @@ func run() error {
 
 	applicationsSyncProcessedHandler := handlers.NewApplicationUpdateProcessedHandler(
 		logger,
-		kafkaClient,
+		busClient,
 	)
 	hireEventHandler := handlers.NewHireEventHandler(
 		logger,
-		kafkaClient,
+		busClient,
 	)
 
-	kafkaServer := app.NewKafkaServer(
+	busServer := app.NewBusServer(
 		logger,
-		kafkaClient,
+		busClient,
 		hireEventHandler,
 		applicationsSyncProcessedHandler,
 	)
@@ -58,9 +57,9 @@ func run() error {
 
 	g, gctx := errgroup.WithContext(ctx)
 
-	defer kafkaServer.Close(ctx)
+	defer busServer.Close(ctx)
 	g.Go(func() error {
-		return kafkaServer.Run(gctx)
+		return busServer.Run(gctx)
 	})
 
 	g.Go(func() error {

@@ -8,10 +8,9 @@ import (
 	"syscall"
 
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/bus"
+	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/bus/handlers"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/database"
-	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
-	kafkaclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka"
-	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/kafka/handlers"
 	sheetsclient "github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/app/sheets"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/repositories"
 	"github.com/dmitriitimoshenko/hi-a/google-sheets-accessor/internal/pkg/services"
@@ -30,12 +29,12 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	kafkaCfg, err := kafka.LoadConfig()
+	busCfg, err := bus.LoadConfig()
 	if err != nil {
 		return err
 	}
 
-	kafkaClient, err := kafkaclient.New(kafkaCfg)
+	busClient, err := bus.New(busCfg)
 	if err != nil {
 		return err
 	}
@@ -67,7 +66,7 @@ func run() error {
 	applicationService := services.NewApplicationService(
 		db,
 		logger,
-		kafkaClient,
+		busClient,
 		sheetsService,
 		applicationRepository,
 		salaryService,
@@ -76,8 +75,8 @@ func run() error {
 	saveApplicationEmbeddingHandler := handlers.NewSaveApplicationEmbeddingHandler(logger, applicationService)
 	applicationUpdateProcessedHandler := handlers.NewApplicationUpdateProcessedHandler(logger, applicationService)
 
-	kafkaServer := app.NewKafkaServer(
-		kafkaClient,
+	busServer := app.NewBusServer(
+		busClient,
 		sheetsClient,
 		logger,
 		applicationUpdateProcessedHandler,
@@ -88,9 +87,9 @@ func run() error {
 
 	g, gctx := errgroup.WithContext(ctx)
 
-	defer kafkaServer.Close(ctx)
+	defer busServer.Close(ctx)
 	g.Go(func() error {
-		return kafkaServer.Run(gctx)
+		return busServer.Run(gctx)
 	})
 
 	g.Go(func() error {

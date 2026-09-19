@@ -30,12 +30,12 @@ func LoadConfig() *Config {
 	config := Config{
 		Port:                              port,
 		APIVersion:                        apiVersion,
-		TopicInterestingMail:              strings.TrimSpace(os.Getenv("KAFKA_TOPIC_INTERESTING_MAIL")),
-		TopicHireEvent:                    strings.TrimSpace(os.Getenv("KAFKA_TOPIC_HIRE_EVENT")),
-		TopicApplicationsSyncUnprocessed:  strings.TrimSpace(os.Getenv("KAFKA_TOPIC_APPLICATIONS_SYNC_UNPROCESSED")),
-		TopicApplicationsSyncProcessed:    strings.TrimSpace(os.Getenv("KAFKA_TOPIC_APPLICATIONS_SYNC_PROCESSED")),
-		TopicApplicationUpdateUnprocessed: strings.TrimSpace(os.Getenv("KAFKA_TOPIC_APPLICATION_UPDATE_UNPROCESSED")),
-		TopicApplicationUpdateProcessed:   strings.TrimSpace(os.Getenv("KAFKA_TOPIC_APPLICATION_UPDATE_PROCESSED")),
+		TopicInterestingMail:              strings.TrimSpace(os.Getenv("STREAM_INTERESTING_MAIL")),
+		TopicHireEvent:                    strings.TrimSpace(os.Getenv("STREAM_HIRE_EVENT")),
+		TopicApplicationsSyncUnprocessed:  strings.TrimSpace(os.Getenv("STREAM_APPLICATIONS_SYNC_UNPROCESSED")),
+		TopicApplicationsSyncProcessed:    strings.TrimSpace(os.Getenv("STREAM_APPLICATIONS_SYNC_PROCESSED")),
+		TopicApplicationUpdateUnprocessed: strings.TrimSpace(os.Getenv("STREAM_APPLICATION_UPDATE_UNPROCESSED")),
+		TopicApplicationUpdateProcessed:   strings.TrimSpace(os.Getenv("STREAM_APPLICATION_UPDATE_PROCESSED")),
 	}
 
 	return &config

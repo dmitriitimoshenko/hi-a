@@ -3,7 +3,6 @@ module github.com/dmitriitimoshenko/hi-a/google-sheets-accessor
 go 1.25
 
 require (
-	github.com/segmentio/kafka-go v0.4.46
 	github.com/stretchr/testify v1.10.0
 	google.golang.org/api v0.256.0
 )
@@ -11,6 +10,7 @@ require (
 require (
 	github.com/lib/pq v1.10.9
 	github.com/pgvector/pgvector-go v0.3.0
+	github.com/redis/go-redis/v9 v9.17.2
 	golang.org/x/sync v0.18.0
 	gorm.io/datatypes v1.2.7
 	gorm.io/driver/sqlite v1.4.3
@@ -19,7 +19,9 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
@@ -46,9 +48,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.7 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
-	github.com/klauspost/compress v1.15.11 // indirect
 	github.com/magiconair/properties v1.8.10
-	github.com/pierrec/lz4/v4 v4.1.16 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
 	go.opentelemetry.io/otel v1.37.0 // indirect
